@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  agent-skeptic-bench:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PYTHONPATH=/app/src
+      - AGENT_SKEPTIC_DEBUG=false
+    volumes:
+      - ./results:/app/results:rw
+    networks:
+      - skeptic-bench
+    restart: unless-stopped
+    
+  benchmark-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: [
+      "python", "-m", "agent_skeptic_bench.cli", "evaluate",
+      "--model", "${MODEL:-gpt-4}",
+      "--categories", "all",
+      "--output", "/app/results/benchmark_results.json"
+    ]
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
+    volumes:
+      - ./results:/app/results:rw
+    networks:
+      - skeptic-bench
+    depends_on:
+      - agent-skeptic-bench
+    profiles:
+      - evaluation
+
+  development:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - .:/app:rw
+      - ~/.cache/pip:/root/.cache/pip:rw
+    working_dir: /app
+    command: ["/bin/bash"]
+    environment:
+      - PYTHONPATH=/app/src
+      - AGENT_SKEPTIC_DEBUG=true
+    networks:
+      - skeptic-bench
+    profiles:
+      - dev
+
+networks:
+  skeptic-bench:
+    driver: bridge
+
+volumes:
+  results:
+    driver: local
