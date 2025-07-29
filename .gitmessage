@@ -1,0 +1,14 @@
+# Title: Summary, imperative, start upper case, don't end with a period
+# No more than 50 chars. #### 50 chars is here:  #
+
+# Remember blank line between title and body.
+
+# Body: Explain *what* and *why* (not *how*). Include task ID when applicable.
+# Wrap at 72 chars. ################################## which is here:  #
+
+
+# At the end: Include Co-authored-by for all contributors. 
+# Include "Fixes #nnn" if this fixes a GitHub issue.
+# Example:
+# Co-authored-by: name <user@users.noreply.github.com>
+# Fixes #123
