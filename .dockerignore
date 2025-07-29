@@ -1,0 +1,70 @@
+# Python cache and artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Development tools
+.mypy_cache/
+.ruff_cache/
+.pre-commit-config.yaml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+docs/_build/
+site/
+
+# Git and development
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Environment and secrets
+.env
+.env.*
+*.key
+*.pem
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Results and data
+results/
+data/
+temp/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# README and docs that aren't needed in container
+*.md
+LICENSE
+CHANGELOG.md
