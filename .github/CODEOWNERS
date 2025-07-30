@@ -1,0 +1,28 @@
+# CODEOWNERS file for automated review assignments
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners - all files
+* @danieleschmidt
+
+# Core source code
+/src/ @danieleschmidt
+/tests/ @danieleschmidt
+
+# Configuration files
+pyproject.toml @danieleschmidt
+.pre-commit-config.yaml @danieleschmidt
+Dockerfile @danieleschmidt
+docker-compose.yml @danieleschmidt
+
+# Documentation
+/docs/ @danieleschmidt
+README.md @danieleschmidt
+CONTRIBUTING.md @danieleschmidt
+
+# Security and compliance
+SECURITY.md @danieleschmidt
+.github/dependabot.yml @danieleschmidt
+.github/workflows/ @danieleschmidt
+
+# GitHub templates and configurations
+.github/ @danieleschmidt
