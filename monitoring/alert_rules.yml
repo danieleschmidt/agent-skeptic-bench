@@ -1,0 +1,129 @@
+# Prometheus alerting rules for Agent Skeptic Bench
+groups:
+  - name: application_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: agent-skeptic-bench
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} requests per second for {{ $labels.instance }}"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: agent-skeptic-bench
+        annotations:
+          summary: "High latency detected"
+          description: "95th percentile latency is {{ $value }}s for {{ $labels.instance }}"
+
+      - alert: BenchmarkExecutionFailure
+        expr: increase(benchmark_execution_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: agent-skeptic-bench
+        annotations:
+          summary: "Benchmark execution failures detected"
+          description: "{{ $value }} benchmark execution failures in the last 5 minutes"
+
+      - alert: ModelAPIFailure
+        expr: increase(model_api_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: agent-skeptic-bench
+        annotations:
+          summary: "Multiple model API failures"
+          description: "{{ $value }} model API errors in the last 5 minutes for {{ $labels.model }}"
+
+  - name: system_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Low disk space"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: monitoring
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute"
+
+  - name: security_alerts
+    rules:
+      - alert: SecurityVulnerabilityDetected
+        expr: increase(security_vulnerabilities_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: security
+        annotations:
+          summary: "Security vulnerability detected"
+          description: "{{ $value }} new security vulnerabilities detected in the last hour"
+
+      - alert: UnauthorizedAccess
+        expr: increase(unauthorized_access_attempts_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "Multiple unauthorized access attempts"
+          description: "{{ $value }} unauthorized access attempts in the last 5 minutes"
+
+  - name: performance_alerts
+    rules:
+      - alert: BenchmarkPerformanceDegradation
+        expr: avg_over_time(benchmark_execution_time_seconds[1h]) > 1.2 * avg_over_time(benchmark_execution_time_seconds[24h] offset 24h)
+        for: 10m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "Benchmark performance degradation"
+          description: "Current benchmark execution time {{ $value }}s is 20% slower than 24h ago"
+
+      - alert: ModelResponseTime
+        expr: histogram_quantile(0.95, rate(model_response_time_seconds_bucket[10m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: performance
+        annotations:
+          summary: "Slow model response time"
+          description: "95th percentile model response time is {{ $value }}s for {{ $labels.model }}"
