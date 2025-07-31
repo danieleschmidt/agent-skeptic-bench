@@ -1,0 +1,209 @@
+# Alertmanager configuration for Agent Skeptic Bench
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@agent-skeptic-bench.org'
+  smtp_auth_username: 'alerts@agent-skeptic-bench.org'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+# Routing configuration
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default'
+  routes:
+    # Critical alerts go to multiple channels
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 15m
+    
+    # Security alerts go to security team
+    - match:
+        team: security
+      receiver: 'security-alerts'
+      group_wait: 0s
+      repeat_interval: 5m
+    
+    # Platform alerts go to platform team
+    - match:
+        team: platform
+      receiver: 'platform-alerts'
+      repeat_interval: 30m
+    
+    # ML platform alerts
+    - match:
+        team: ml-platform
+      receiver: 'ml-platform-alerts'
+      repeat_interval: 30m
+    
+    # Business/product alerts
+    - match:
+        team: product
+      receiver: 'product-alerts'
+      repeat_interval: 2h
+
+# Inhibition rules to reduce noise
+inhibit_rules:
+  # Inhibit warning alerts when critical alerts are firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']
+  
+  # Inhibit individual service alerts when the whole application is down
+  - source_match:
+      alertname: 'ApplicationDown'
+    target_match_re:
+      alertname: '(HighErrorRate|HighLatency|DatabaseConnectionFailure)'
+    equal: ['instance']
+
+# Receiver configurations
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'platform-team@agent-skeptic-bench.org'
+        subject: '[Agent Skeptic Bench] {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Details:
+          {{ range .Labels.SortedPairs }}  - {{ .Name }}: {{ .Value }}
+          {{ end }}
+          {{ end }}
+
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'platform-team@agent-skeptic-bench.org'
+        subject: '[CRITICAL] Agent Skeptic Bench Alert'
+        body: |
+          🚨 CRITICAL ALERT 🚨
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Runbook: {{ .Annotations.runbook_url }}
+          
+          Instance: {{ .Labels.instance }}
+          Service: {{ .Labels.service }}
+          Started: {{ .StartsAt }}
+          {{ end }}
+    
+    slack_configs:
+      - channel: '#alerts-critical'
+        title: ':fire: Critical Alert - Agent Skeptic Bench'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          
+          *Service:* {{ .Labels.service }}
+          *Instance:* {{ .Labels.instance }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+        send_resolved: true
+    
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_ROUTING_KEY}'
+        description: '{{ .GroupLabels.alertname }} - Agent Skeptic Bench'
+        details:
+          summary: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+          source: 'Agent Skeptic Bench Monitoring'
+          severity: 'critical'
+
+  - name: 'security-alerts'
+    email_configs:
+      - to: 'security-team@agent-skeptic-bench.org'
+        subject: '[SECURITY] Agent Skeptic Bench Security Alert'
+        body: |
+          🔒 SECURITY ALERT 🔒
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Runbook: {{ .Annotations.runbook_url }}
+          
+          Service: {{ .Labels.service }}
+          Severity: {{ .Labels.severity }}
+          Started: {{ .StartsAt }}
+          {{ end }}
+          
+          Please investigate immediately.
+    
+    slack_configs:
+      - channel: '#security-alerts'
+        title: ':warning: Security Alert - Agent Skeptic Bench'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          
+          *Severity:* {{ .Labels.severity }}
+          *Service:* {{ .Labels.service }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'platform-alerts'
+    email_configs:
+      - to: 'platform-team@agent-skeptic-bench.org'
+        subject: '[Platform] Agent Skeptic Bench Alert'
+    
+    slack_configs:
+      - channel: '#platform-alerts'
+        title: 'Platform Alert - Agent Skeptic Bench'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          
+          *Service:* {{ .Labels.service }}
+          *Instance:* {{ .Labels.instance }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'ml-platform-alerts'
+    email_configs:
+      - to: 'ml-team@agent-skeptic-bench.org'
+        subject: '[ML Platform] Agent Skeptic Bench Alert'
+    
+    slack_configs:
+      - channel: '#ml-platform-alerts'
+        title: 'ML Platform Alert - Agent Skeptic Bench'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          
+          *Service:* {{ .Labels.service }}
+          {{ if .Labels.model_name }}*Model:* {{ .Labels.model_name }}{{ end }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+        send_resolved: true
+
+  - name: 'product-alerts'
+    email_configs:
+      - to: 'product-team@agent-skeptic-bench.org'
+        subject: '[Product] Agent Skeptic Bench Business Alert'
+    
+    slack_configs:
+      - channel: '#product-alerts'
+        title: 'Business Metrics Alert - Agent Skeptic Bench'
+        text: |
+          {{ range .Alerts }}
+          *{{ .Annotations.summary }}*
+          {{ .Annotations.description }}
+          
+          *Service:* {{ .Labels.service }}
+          {{ end }}
+        send_resolved: true
+
+# Templates for custom message formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

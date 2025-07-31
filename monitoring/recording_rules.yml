@@ -1,0 +1,162 @@
+# Recording rules for Agent Skeptic Bench metrics
+groups:
+  - name: application_recording_rules
+    interval: 30s
+    rules:
+      # Request rate calculations
+      - record: http:request_rate_5m
+        expr: rate(http_requests_total[5m])
+      
+      - record: http:request_rate_1h
+        expr: rate(http_requests_total[1h])
+      
+      # Error rate calculations
+      - record: http:error_rate_5m
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])
+      
+      - record: http:error_rate_1h
+        expr: rate(http_requests_total{status=~"5.."}[1h]) / rate(http_requests_total[1h])
+      
+      # Latency percentiles
+      - record: http:request_duration_99p
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))
+      
+      - record: http:request_duration_95p
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+      
+      - record: http:request_duration_50p
+        expr: histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))
+
+  - name: evaluation_recording_rules
+    interval: 30s
+    rules:
+      # Evaluation rates
+      - record: evaluations:rate_5m
+        expr: rate(evaluations_total[5m])
+      
+      - record: evaluations:success_rate_5m
+        expr: rate(evaluations_success_total[5m]) / rate(evaluations_total[5m])
+      
+      - record: evaluations:failure_rate_5m
+        expr: rate(evaluations_failed_total[5m]) / rate(evaluations_total[5m])
+      
+      # AI model performance
+      - record: ai_api:response_time_95p
+        expr: histogram_quantile(0.95, rate(ai_api_request_duration_seconds_bucket[5m]))
+      
+      - record: ai_api:success_rate_5m
+        expr: rate(ai_api_requests_success_total[5m]) / rate(ai_api_requests_total[5m])
+      
+      # Scenario performance by category
+      - record: evaluations:category_success_rate_5m
+        expr: rate(evaluations_success_total[5m]) / rate(evaluations_total[5m])
+      
+      # Model comparison metrics
+      - record: evaluations:model_performance_5m
+        expr: |
+          (
+            rate(evaluations_success_total[5m]) / rate(evaluations_total[5m])
+          ) by (model_name)
+
+  - name: infrastructure_recording_rules
+    interval: 60s
+    rules:
+      # CPU utilization
+      - record: node:cpu_utilization
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+      
+      # Memory utilization
+      - record: node:memory_utilization
+        expr: |
+          (
+            (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 
+            node_memory_MemTotal_bytes
+          ) * 100
+      
+      # Disk utilization
+      - record: node:disk_utilization
+        expr: |
+          (
+            (node_filesystem_size_bytes - node_filesystem_avail_bytes) / 
+            node_filesystem_size_bytes
+          ) * 100
+      
+      # Network I/O rates
+      - record: node:network_receive_rate
+        expr: rate(node_network_receive_bytes_total[5m])
+      
+      - record: node:network_transmit_rate
+        expr: rate(node_network_transmit_bytes_total[5m])
+
+  - name: business_recording_rules
+    interval: 300s  # 5 minute intervals for business metrics
+    rules:
+      # Daily evaluation volumes
+      - record: evaluations:daily_volume
+        expr: increase(evaluations_total[24h])
+      
+      # Hourly evaluation volumes
+      - record: evaluations:hourly_volume
+        expr: increase(evaluations_total[1h])
+      
+      # User activity metrics
+      - record: users:active_1h
+        expr: count(increase(user_requests_total[1h]) > 0)
+      
+      - record: users:active_24h
+        expr: count(increase(user_requests_total[24h]) > 0)
+      
+      # API usage patterns
+      - record: api:usage_by_endpoint_1h
+        expr: increase(http_requests_total[1h]) by (endpoint)
+      
+      # Cost metrics (if available)
+      - record: costs:ai_api_daily
+        expr: increase(ai_api_cost_total[24h])
+
+  - name: security_recording_rules
+    interval: 60s
+    rules:
+      # Authentication metrics
+      - record: auth:failure_rate_5m
+        expr: rate(auth_failed_attempts_total[5m]) / rate(auth_attempts_total[5m])
+      
+      - record: auth:suspicious_activity_5m
+        expr: rate(security_violations_total[5m])
+      
+      # Rate limiting metrics
+      - record: rate_limit:violations_5m
+        expr: rate(rate_limit_violations_total[5m])
+      
+      # Geographic distribution of requests
+      - record: requests:by_country_1h
+        expr: increase(http_requests_total[1h]) by (country_code)
+
+  - name: sla_recording_rules
+    interval: 60s
+    rules:
+      # SLA compliance metrics
+      - record: sla:availability_5m
+        expr: avg_over_time(up[5m])
+      
+      - record: sla:response_time_compliance_5m
+        expr: |
+          (
+            sum(rate(http_request_duration_seconds_bucket{le="0.5"}[5m])) /
+            sum(rate(http_request_duration_seconds_count[5m]))
+          ) * 100
+      
+      - record: sla:error_budget_burn_rate_1h
+        expr: |
+          (
+            rate(http_requests_total{status=~"5.."}[1h]) /
+            rate(http_requests_total[1h])
+          ) / 0.001  # Assuming 99.9% SLA (0.1% error budget)
+      
+      # Performance SLA tracking
+      - record: sla:evaluation_success_rate_5m
+        expr: |
+          (
+            rate(evaluations_success_total[5m]) /
+            rate(evaluations_total[5m])
+          ) * 100
