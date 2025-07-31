@@ -8,9 +8,11 @@ groups:
         labels:
           severity: critical
           service: agent-skeptic-bench
+          team: platform
         annotations:
           summary: "High error rate detected"
           description: "Error rate is {{ $value }} requests per second for {{ $labels.instance }}"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/high-error-rate"
 
       - alert: HighLatency
         expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
@@ -18,6 +20,168 @@ groups:
         labels:
           severity: warning
           service: agent-skeptic-bench
+          team: platform
+        annotations:
+          summary: "High response latency detected"
+          description: "95th percentile latency is {{ $value }}s for {{ $labels.instance }}"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/high-latency"
+
+      - alert: ApplicationDown
+        expr: up{job="agent-skeptic-bench"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: agent-skeptic-bench 
+          team: platform
+        annotations:
+          summary: "Application instance is down"
+          description: "Application instance {{ $labels.instance }} has been down for more than 1 minute"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/app-down"
+
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes / 1024 / 1024) > 1000
+        for: 15m
+        labels:
+          severity: warning
+          service: agent-skeptic-bench
+          team: platform
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}MB on {{ $labels.instance }}"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/high-memory"
+
+      - alert: EvaluationFailureRate
+        expr: rate(evaluations_failed_total[5m]) / rate(evaluations_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: agent-skeptic-bench
+          team: ml-platform
+        annotations:
+          summary: "High evaluation failure rate"
+          description: "{{ $value | humanizePercentage }} of evaluations are failing"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/evaluation-failures"
+
+  - name: infrastructure_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+          team: platform
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+          team: platform
+        annotations:
+          summary: "High disk usage"
+          description: "Disk usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      - alert: DatabaseConnectionFailure
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: database
+          team: platform
+        annotations:
+          summary: "Database connection failure"
+          description: "Cannot connect to PostgreSQL database"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/db-connection-failure"
+
+      - alert: RedisConnectionFailure
+        expr: up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cache
+          team: platform
+        annotations:
+          summary: "Redis connection failure"
+          description: "Cannot connect to Redis cache"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/redis-connection-failure"
+
+  - name: business_metrics_alerts
+    rules:
+      - alert: LowEvaluationVolume
+        expr: rate(evaluations_total[1h]) < 10
+        for: 30m
+        labels:
+          severity: warning
+          service: agent-skeptic-bench
+          team: product
+        annotations:
+          summary: "Low evaluation volume"
+          description: "Only {{ $value }} evaluations per hour in the last 30 minutes"
+
+      - alert: ModelAPIFailures
+        expr: rate(ai_api_requests_failed_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: ai-integration
+          team: ml-platform
+        annotations:
+          summary: "High AI API failure rate"
+          description: "{{ $value }} AI API requests failing per second"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/ai-api-failures"
+
+      - alert: UnusualTrafficPattern
+        expr: rate(http_requests_total[5m]) > 2 * rate(http_requests_total[1h] offset 1h)
+        for: 10m
+        labels:
+          severity: info
+          service: agent-skeptic-bench
+          team: security
+        annotations:
+          summary: "Unusual traffic pattern detected"
+          description: "Current traffic is {{ $value }}x higher than usual"
+
+  - name: security_alerts
+    rules:
+      - alert: HighFailedLoginRate
+        expr: rate(auth_failed_attempts_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: authentication
+          team: security
+        annotations:
+          summary: "High failed login rate"
+          description: "{{ $value }} failed login attempts per second"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/high-failed-logins"
+
+      - alert: SuspiciousUserActivity
+        expr: rate(security_violations_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: security
+          team: security
+        annotations:
+          summary: "Security violations detected"
+          description: "{{ $value }} security violations detected per second"
+          runbook_url: "https://runbooks.agent-skeptic-bench.org/security-violations"
+
+      - alert: CertificateExpiringSoon
+        expr: ssl_certificate_expiry_seconds < 7 * 24 * 3600
+        for: 1h
+        labels:
+          severity: warning
+          service: infrastructure
+          team: platform
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "SSL certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"
         annotations:
           summary: "High latency detected"
           description: "95th percentile latency is {{ $value }}s for {{ $labels.instance }}"
