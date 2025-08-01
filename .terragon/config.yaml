@@ -1,0 +1,52 @@
+scoring:
+  weights:
+    advanced:
+      wsjf: 0.5
+      ice: 0.1
+      technicalDebt: 0.3
+      security: 0.1
+  
+  thresholds:
+    minScore: 15
+    maxRisk: 0.7
+    securityBoost: 2.0
+    complianceBoost: 1.8
+
+discovery:
+  sources:
+    - gitHistory
+    - staticAnalysis
+    - issueTrackers
+    - vulnerabilityDatabases
+    - performanceMonitoring
+    - dependencyUpdates
+  
+  tools:
+    staticAnalysis:
+      - ruff
+      - mypy
+      - bandit
+      - semgrep
+    security:
+      - bandit
+      - safety
+      - semgrep
+    performance:
+      - pytest-benchmark
+      - memory-profiler
+
+execution:
+  maxConcurrentTasks: 1
+  testRequirements:
+    minCoverage: 85
+    performanceRegression: 5
+  rollbackTriggers:
+    - testFailure
+    - buildFailure
+    - securityViolation
+    - coverageRegression
+
+maturity:
+  current: 78
+  target: 92
+  classification: "advanced"
