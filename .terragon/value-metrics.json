@@ -1,0 +1,18 @@
+{
+  "lastUpdate": "2025-08-01T15:27:02.979153",
+  "totalItems": 30,
+  "averageScore": 38.00666666666667,
+  "categoryBreakdown": {
+    "security": 2,
+    "dependency-update": 3,
+    "technical-debt": 21,
+    "code-quality": 1,
+    "performance": 3
+  },
+  "priorityBreakdown": {
+    "high": 8,
+    "medium": 7,
+    "low": 15
+  },
+  "topScore": 163.6
+}
