@@ -1,10 +1,17 @@
 {
     "name": "Agent Skeptic Bench Dev Environment",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": ".."
+    },
     
     "features": {
         "ghcr.io/devcontainers/features/git:1": {},
-        "ghcr.io/devcontainers/features/github-cli:1": {}
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+        "ghcr.io/devcontainers/features/node:1": {
+            "version": "18"
+        }
     },
     
     "customizations": {
@@ -15,9 +22,12 @@
                 "ms-python.isort",
                 "charliermarsh.ruff",
                 "ms-python.mypy-type-checker",
-                "ms-vscode.test-adapter-converter",
-                "littlefoxteam.vscode-python-test-adapter",
+                "ms-python.pytest",
+                "ms-toolsai.jupyter",
                 "redhat.vscode-yaml",
+                "ms-vscode.vscode-json",
+                "eamodio.gitlens",
+                "github.copilot",
                 "yzhang.markdown-all-in-one"
             ],
             "settings": {
@@ -25,23 +35,59 @@
                 "python.formatting.provider": "black",
                 "python.linting.enabled": true,
                 "python.linting.ruffEnabled": true,
-                "editor.formatOnSave": true,
+                "python.linting.mypyEnabled": true,
+                "python.sortImports.args": ["--profile", "black"],
                 "python.testing.pytestEnabled": true,
-                "python.testing.unittestEnabled": false
+                "python.testing.unittestEnabled": false,
+                "python.testing.pytestArgs": ["tests"],
+                "editor.formatOnSave": true,
+                "editor.codeActionsOnSave": {
+                    "source.organizeImports": true
+                },
+                "files.exclude": {
+                    "**/__pycache__": true,
+                    "**/*.pyc": true,
+                    "**/.pytest_cache": true,
+                    "**/.mypy_cache": true,
+                    "**/.ruff_cache": true
+                }
             }
         }
     },
     
-    "postCreateCommand": "bash .devcontainer/setup.sh",
+    "forwardPorts": [8000, 5432, 6379, 3000, 9090],
+    "portsAttributes": {
+        "8000": {
+            "label": "API Server",
+            "onAutoForward": "notify"
+        },
+        "5432": {
+            "label": "PostgreSQL",
+            "onAutoForward": "silent"
+        },
+        "6379": {
+            "label": "Redis",
+            "onAutoForward": "silent"
+        },
+        "3000": {
+            "label": "Frontend",
+            "onAutoForward": "notify"
+        },
+        "9090": {
+            "label": "Prometheus",
+            "onAutoForward": "silent"
+        }
+    },
     
-    "forwardPorts": [],
+    "postCreateCommand": "pip install -e .[dev,monitoring,security,docs] && pre-commit install",
     
     "mounts": [
         "source=${localWorkspaceFolder}/.env,target=/workspaces/agent-skeptic-bench/.env,type=bind,consistency=cached"
     ],
     
-    "remoteEnv": {
-        "PYTHONPATH": "/workspaces/agent-skeptic-bench/src"
+    "containerEnv": {
+        "PYTHONPATH": "/workspaces/agent-skeptic-bench/src",
+        "ENVIRONMENT": "development"
     },
     
     "remoteUser": "vscode"
