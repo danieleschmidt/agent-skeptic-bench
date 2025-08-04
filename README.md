@@ -382,10 +382,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ```bibtex
 @misc{agent_skeptic_bench_2025,
   title={Agent Skeptic Bench: Evaluating Epistemic Vigilance in AI Systems},
-  author={Your Name et al.},
+  author={Daniel Schmidt},
   year={2025},
   publisher={GitHub},
-  url={https://github.com/yourusername/agent-skeptic-bench}
+  url={https://github.com/danieleschmidt/agent-skeptic-bench}
 }
 
 @article{anthropic_deceptioneval_2025,
