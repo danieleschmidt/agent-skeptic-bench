@@ -17,6 +17,14 @@ from .models import (
     ScenarioCategory,
     SkepticResponse
 )
+from .exceptions import (
+    EvaluationError,
+    AgentTimeoutError,
+    AgentResponseError,
+    MetricsCalculationError,
+    ScenarioNotFoundError
+)
+from .validation import response_validator
 
 
 logger = logging.getLogger(__name__)
@@ -56,17 +64,36 @@ class SkepticBenchmark:
     async def evaluate_scenario(self,
                                skeptic_agent: BaseSkepticAgent,
                                scenario: Scenario,
-                               context: Optional[Dict] = None) -> EvaluationResult:
+                               context: Optional[Dict] = None,
+                               timeout: Optional[float] = None) -> EvaluationResult:
         """Evaluate a single scenario with a skeptic agent."""
+        start_time = datetime.utcnow()
+        task_id = f"single_{scenario.id}_{start_time.timestamp()}"
+        
         try:
-            # Get skeptic response
-            response = await skeptic_agent.evaluate_claim(scenario, context)
+            # Get skeptic response with timeout
+            if timeout:
+                response = await asyncio.wait_for(
+                    skeptic_agent.evaluate_claim(scenario, context),
+                    timeout=timeout
+                )
+            else:
+                response = await skeptic_agent.evaluate_claim(scenario, context)
             
-            # Calculate metrics
-            metrics = self.metrics_calculator.calculate_metrics(response, scenario)
+            # Validate response
+            validation_errors = response_validator.validate_response(response)
+            if validation_errors:
+                logger.warning(f"Response validation issues for {scenario.id}: {validation_errors}")
+                # Continue with evaluation but log issues
+                
+            # Calculate metrics with error handling
+            try:
+                metrics = self.metrics_calculator.calculate_metrics(response, scenario)
+            except Exception as e:
+                logger.error(f"Metrics calculation failed for {scenario.id}: {e}")
+                raise MetricsCalculationError("overall_evaluation", str(e))
             
             # Create evaluation result
-            task_id = f"single_{scenario.id}_{datetime.utcnow().timestamp()}"
             result = EvaluationResult(
                 task_id=task_id,
                 scenario=scenario,
@@ -74,17 +101,28 @@ class SkepticBenchmark:
                 metrics=metrics,
                 analysis={
                     "single_evaluation": True,
-                    "context": context or {}
-                }
+                    "context": context or {},
+                    "evaluation_duration_ms": int((datetime.utcnow() - start_time).total_seconds() * 1000),
+                    "validation_warnings": validation_errors
+                },
+                evaluation_notes=validation_errors
             )
             
             logger.info(f"Evaluated scenario {scenario.id}: Overall score {metrics.overall_score:.3f}")
             return result
             
+        except asyncio.TimeoutError:
+            error_msg = f"Agent evaluation timed out after {timeout}s"
+            logger.error(f"Timeout evaluating scenario {scenario.id}: {error_msg}")
+            raise AgentTimeoutError(getattr(skeptic_agent, 'agent_id', 'unknown'), timeout or 0)
+            
+        except (AgentTimeoutError, AgentResponseError, MetricsCalculationError):
+            # Re-raise our custom exceptions
+            raise
+            
         except Exception as e:
-            logger.error(f"Failed to evaluate scenario {scenario.id}: {e}")
-            # Return failed result
-            return self._create_failed_result(scenario, str(e))
+            logger.error(f"Unexpected error evaluating scenario {scenario.id}: {e}")
+            raise EvaluationError(f"Failed to evaluate scenario {scenario.id}: {e}")
     
     async def evaluate_batch(self,
                             skeptic_agent: BaseSkepticAgent,

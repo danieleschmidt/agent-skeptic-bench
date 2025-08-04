@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  agent-skeptic-bench:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: agent-skeptic-bench-prod
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - ENABLE_STRUCTURED_LOGGING=true
+      - ENABLE_PERFORMANCE_MONITORING=true
+      - CACHE_TTL=3600
+      - MAX_CONCURRENT_EVALUATIONS=32
+      - API_TIMEOUT=60
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://asb_user:${DB_PASSWORD}@postgres:5432/agent_skeptic_bench
+    ports:
+      - "8000:8000"
+      - "8080:8080"  # Metrics/monitoring port
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs
+      - scenarios_cache:/app/cache
+    depends_on:
+      - redis
+      - postgres
+      - prometheus
+    networks:
+      - asb-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  redis:
+    image: redis:7-alpine
+    container_name: asb-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - asb-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: asb-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=agent_skeptic_bench
+      - POSTGRES_USER=asb_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - asb-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asb_user -d agent_skeptic_bench"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: asb-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - asb-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: asb-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - asb-network
+    depends_on:
+      - prometheus
+
+  nginx:
+    image: nginx:alpine
+    container_name: asb-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - agent-skeptic-bench
+    networks:
+      - asb-network
+
+volumes:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  scenarios_cache:
+  nginx_logs:
+
+networks:
+  asb-network:
+    driver: bridge

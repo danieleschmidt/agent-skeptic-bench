@@ -30,7 +30,7 @@ class ScenarioRecord(Base):
     correct_skepticism_level: Mapped[float] = mapped_column(Float, nullable=False)
     good_evidence_requests: Mapped[List[str]] = mapped_column(JSON, default=list)
     red_flags: Mapped[List[str]] = mapped_column(JSON, default=list)
-    metadata: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    scenario_metadata: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
@@ -57,7 +57,7 @@ class ScenarioRecord(Base):
             correct_skepticism_level=self.correct_skepticism_level,
             good_evidence_requests=self.good_evidence_requests or [],
             red_flags=self.red_flags or [],
-            metadata=self.metadata or {},
+            metadata=self.scenario_metadata or {},
             created_at=self.created_at
         )
 

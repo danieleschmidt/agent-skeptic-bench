@@ -12,12 +12,12 @@ __author__ = "Terragon Labs"
 __email__ = "info@terragonlabs.com"
 
 # Core components
-from .benchmark import SkepticalEvaluationBenchmark
-from .agents import AgentFactory, OpenAIAgent, AnthropicAgent, GoogleAIAgent
+from .benchmark import SkepticBenchmark
+from .agents import AgentFactory, BaseSkepticAgent, OpenAISkepticAgent, AnthropicSkepticAgent, GoogleSkepticAgent, create_skeptic_agent
 from .models import (
     Scenario, ScenarioCategory, 
     SkepticResponse, EvaluationMetrics, EvaluationResult, 
-    BenchmarkSession
+    BenchmarkSession, AgentConfig, AgentProvider
 )
 
 # Advanced features
@@ -36,11 +36,13 @@ from .monitoring import (
 
 __all__ = [
     # Core
-    "SkepticalEvaluationBenchmark",
+    "SkepticBenchmark",
     "AgentFactory",
-    "OpenAIAgent",
-    "AnthropicAgent",
-    "GoogleAIAgent",
+    "BaseSkepticAgent", 
+    "OpenAISkepticAgent",
+    "AnthropicSkepticAgent",
+    "GoogleSkepticAgent",
+    "create_skeptic_agent",
     
     # Models
     "Scenario",
@@ -49,6 +51,8 @@ __all__ = [
     "EvaluationMetrics", 
     "EvaluationResult",
     "BenchmarkSession",
+    "AgentConfig",
+    "AgentProvider",
     
     # Advanced Features
     "SearchEngine",
