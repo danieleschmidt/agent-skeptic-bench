@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 from .models import Scenario, ScenarioCategory, AdversaryAgent, OverconfidentAgent, ManipulativeAgent, GishGallopAgent
+from .data_loader import get_data_loader
 
 
 logger = logging.getLogger(__name__)
@@ -27,15 +28,17 @@ class ScenarioLoader:
     
     def load_scenarios(self, categories: Optional[List[ScenarioCategory]] = None) -> List[Scenario]:
         """Load scenarios from data files."""
+        data_loader = get_data_loader()
+        
         if categories is None:
-            categories = list(ScenarioCategory)
+            scenarios = data_loader.get_all_scenarios()
+        else:
+            scenarios = []
+            for category in categories:
+                category_scenarios = data_loader.get_scenarios_by_category(category)
+                scenarios.extend(category_scenarios)
         
-        scenarios = []
-        for category in categories:
-            category_scenarios = self._load_category_scenarios(category)
-            scenarios.extend(category_scenarios)
-        
-        logger.info(f"Loaded {len(scenarios)} scenarios across {len(categories)} categories")
+        logger.info(f"Loaded {len(scenarios)} scenarios across {len(categories) if categories else 'all'} categories")
         return scenarios
     
     def _load_category_scenarios(self, category: ScenarioCategory) -> List[Scenario]:
@@ -229,12 +232,11 @@ class ScenarioLoader:
     
     def get_scenario(self, scenario_id: str) -> Optional[Scenario]:
         """Get a specific scenario by ID."""
-        if scenario_id in self._scenario_cache:
-            return self._scenario_cache[scenario_id]
-        
-        # Try loading all scenarios if not in cache
-        self.load_scenarios()
-        return self._scenario_cache.get(scenario_id)
+        data_loader = get_data_loader()
+        scenario = data_loader.get_scenario(scenario_id)
+        if scenario is None:
+            logger.warning(f"Scenario not found: {scenario_id}")
+        return scenario
     
     def get_random_scenario(self, category: Optional[ScenarioCategory] = None) -> Scenario:
         """Get a random scenario, optionally from a specific category."""

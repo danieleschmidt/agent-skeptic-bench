@@ -8,7 +8,7 @@ from enum import Enum
 from datetime import datetime, timedelta
 
 from ..models import Scenario, EvaluationResult, ScenarioCategory
-from ..database.models import ScenarioModel, EvaluationModel
+from ..database.models import ScenarioRecord, EvaluationRecord
 
 
 logger = logging.getLogger(__name__)

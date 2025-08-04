@@ -47,7 +47,7 @@ class TestSkepticBenchmark:
         assert scenario == sample_scenario
         benchmark_instance.scenario_loader.get_scenario.assert_called_with("test_scenario_001")
     
-    @pytest_asyncio.async_test
+    @pytest.mark.asyncio
     async def test_evaluate_scenario(self, benchmark_instance, sample_scenario, sample_agent_config):
         """Test evaluating a single scenario."""
         # Mock agent
@@ -88,7 +88,7 @@ class TestSkepticBenchmark:
         assert result.metrics == mock_metrics
         assert result.passed_evaluation == True  # Should pass with 0.8 overall score
     
-    @pytest_asyncio.async_test
+    @pytest.mark.asyncio
     async def test_evaluate_batch(self, benchmark_instance, sample_agent_config):
         """Test batch evaluation of scenarios."""
         # Create test scenarios
@@ -150,7 +150,7 @@ class TestSkepticBenchmark:
         assert session.status == "running"
         assert session.id in benchmark_instance._active_sessions
     
-    @pytest_asyncio.async_test
+    @pytest.mark.asyncio
     async def test_run_session(self, benchmark_instance, sample_agent_config):
         """Test running a complete benchmark session."""
         # Create session

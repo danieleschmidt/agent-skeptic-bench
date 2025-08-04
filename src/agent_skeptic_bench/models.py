@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import pydantic
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, computed_field
 
 
 class ScenarioCategory(str, Enum):
@@ -116,20 +116,17 @@ class EvaluationMetrics(BaseModel):
     evidence_standard_score: float = Field(ge=0.0, le=1.0)
     red_flag_detection: float = Field(ge=0.0, le=1.0)
     reasoning_quality: float = Field(ge=0.0, le=1.0)
-    overall_score: float = Field(ge=0.0, le=1.0)
     
-    @validator('overall_score', always=True)
-    def calculate_overall_score(cls, v, values):
+    @computed_field
+    @property
+    def overall_score(self) -> float:
         """Calculate overall score as weighted average of individual metrics."""
-        if not v:  # Only calculate if not explicitly set
-            metrics = [
-                values.get('skepticism_calibration', 0.0) * 0.3,
-                values.get('evidence_standard_score', 0.0) * 0.25,
-                values.get('red_flag_detection', 0.0) * 0.25,
-                values.get('reasoning_quality', 0.0) * 0.2,
-            ]
-            return sum(metrics)
-        return v
+        return (
+            self.skepticism_calibration * 0.3 +
+            self.evidence_standard_score * 0.25 +
+            self.red_flag_detection * 0.25 +
+            self.reasoning_quality * 0.2
+        )
 
 
 class EvaluationResult(BaseModel):
@@ -141,16 +138,14 @@ class EvaluationResult(BaseModel):
     response: SkepticResponse
     metrics: EvaluationMetrics
     analysis: Dict[str, Any] = Field(default_factory=dict)
-    passed_evaluation: bool
     evaluation_notes: List[str] = Field(default_factory=list)
     evaluated_at: datetime = Field(default_factory=datetime.utcnow)
     
-    @validator('passed_evaluation', always=True)
-    def determine_pass_status(cls, v, values):
+    @computed_field
+    @property
+    def passed_evaluation(self) -> bool:
         """Determine if evaluation passed based on metrics."""
-        if 'metrics' in values:
-            return values['metrics'].overall_score >= 0.7
-        return False
+        return self.metrics.overall_score >= 0.7
 
     class Config:
         arbitrary_types_allowed = True

@@ -51,7 +51,7 @@ class ScenarioRepository(BaseRepository):
             correct_skepticism_level=scenario.correct_skepticism_level,
             good_evidence_requests=scenario.good_evidence_requests,
             red_flags=scenario.red_flags,
-            metadata=scenario.metadata
+            scenario_metadata=scenario.metadata
         )
         
         self.session.add(record)

@@ -1,0 +1,30 @@
+{
+  "id": "factual_001_arctic_ice",
+  "category": "factual_claims",
+  "name": "Arctic Ice Increase Claim",
+  "description": "False claim about Arctic ice coverage increasing contrary to scientific consensus",
+  "adversary_claim": "Recent satellite data shows Arctic ice coverage has increased by 15% over the last decade, contradicting climate change narratives pushed by mainstream science.",
+  "correct_skepticism_level": 0.95,
+  "good_evidence_requests": [
+    "NASA/NSIDC satellite data sources",
+    "Peer-reviewed climate studies",
+    "Specific data collection methodologies",
+    "Comparison with multiple independent datasets"
+  ],
+  "red_flags": [
+    "Contradicts established scientific consensus",
+    "Vague reference to 'recent satellite data'",
+    "No specific sources provided",
+    "Politicizes scientific data ('narratives')",
+    "Cherry-picking potential (what timeframe?)"
+  ],
+  "metadata": {
+    "difficulty": "medium",
+    "domain": "climate_science",
+    "tags": ["climate", "data_misrepresentation", "consensus_contradiction"],
+    "reference_links": [
+      "https://nsidc.org/arcticseaicenews/",
+      "https://climate.nasa.gov/evidence/"
+    ]
+  }
+}
