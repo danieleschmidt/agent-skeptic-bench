@@ -1,9 +1,11 @@
-"""Performance optimization algorithms for Agent Skeptic Bench."""
+"""Performance optimization algorithms for Agent Skeptic Bench with quantum-inspired enhancements."""
 
 import logging
 import asyncio
 import time
-from typing import Dict, List, Optional, Any, Callable, Union
+import math
+import random
+from typing import Dict, List, Optional, Any, Callable, Union, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict, deque
@@ -12,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import pickle
 
-from ..models import EvaluationResult, Scenario
+from ..models import EvaluationResult, Scenario, EvaluationMetrics, SkepticResponse
 
 
 logger = logging.getLogger(__name__)
@@ -507,3 +509,343 @@ class QueryOptimizer:
                 "Use LIMIT when appropriate"
             ]
         }
+
+
+@dataclass
+class QuantumState:
+    """Represents a quantum-inspired state for optimization."""
+    amplitude: complex
+    probability: float
+    parameters: Dict[str, float]
+    
+    def __post_init__(self):
+        self.probability = abs(self.amplitude) ** 2
+
+
+class QuantumInspiredOptimizer:
+    """Quantum-inspired optimization for skepticism parameter tuning."""
+    
+    def __init__(self, 
+                 population_size: int = 30,
+                 max_generations: int = 50,
+                 mutation_rate: float = 0.1,
+                 quantum_rotation_angle: float = 0.05):
+        self.population_size = population_size
+        self.max_generations = max_generations
+        self.mutation_rate = mutation_rate
+        self.quantum_rotation_angle = quantum_rotation_angle
+        self.population: List[QuantumState] = []
+        self.best_solution: Optional[QuantumState] = None
+        self.fitness_history: List[float] = []
+    
+    def initialize_population(self, parameter_bounds: Dict[str, Tuple[float, float]]) -> None:
+        """Initialize quantum population with superposition states."""
+        self.population = []
+        
+        for _ in range(self.population_size):
+            # Create quantum superposition of parameter values
+            parameters = {}
+            amplitude_real = random.uniform(-1, 1)
+            amplitude_imag = random.uniform(-1, 1)
+            
+            for param_name, (min_val, max_val) in parameter_bounds.items():
+                parameters[param_name] = random.uniform(min_val, max_val)
+            
+            # Normalize amplitude
+            amplitude = complex(amplitude_real, amplitude_imag)
+            norm = abs(amplitude)
+            if norm > 0:
+                amplitude = amplitude / norm
+            
+            quantum_state = QuantumState(
+                amplitude=amplitude,
+                probability=0.0,  # Will be calculated in __post_init__
+                parameters=parameters
+            )
+            
+            self.population.append(quantum_state)
+    
+    def fitness_function(self, 
+                        parameters: Dict[str, float], 
+                        evaluation_data: List[Tuple[Scenario, SkepticResponse, EvaluationMetrics]]) -> float:
+        """Evaluate fitness using quantum-inspired scoring."""
+        if not evaluation_data:
+            return 0.0
+        
+        total_fitness = 0.0
+        quantum_coherence_bonus = 0.0
+        
+        for scenario, response, metrics in evaluation_data:
+            # Base fitness from evaluation metrics
+            base_score = (
+                metrics.skepticism_calibration * 0.3 +
+                metrics.evidence_standard_score * 0.25 +
+                metrics.red_flag_detection * 0.25 +
+                metrics.reasoning_quality * 0.2
+            )
+            
+            # Quantum coherence for skepticism alignment
+            expected_skepticism = scenario.correct_skepticism_level
+            actual_skepticism = 1.0 - response.confidence_level if response.confidence_level <= 0.5 else response.confidence_level
+            
+            coherence = 1.0 - abs(expected_skepticism - actual_skepticism)
+            quantum_coherence_bonus += coherence * 0.1
+            
+            total_fitness += base_score
+        
+        # Average fitness with quantum bonuses
+        average_fitness = total_fitness / len(evaluation_data)
+        coherence_bonus = quantum_coherence_bonus / len(evaluation_data)
+        entanglement_bonus = self._calculate_entanglement_bonus(parameters)
+        
+        return average_fitness + coherence_bonus + entanglement_bonus
+    
+    def _calculate_entanglement_bonus(self, parameters: Dict[str, float]) -> float:
+        """Calculate quantum entanglement bonus for parameter harmony."""
+        if len(parameters) < 2:
+            return 0.0
+        
+        param_values = list(parameters.values())
+        correlations = []
+        
+        for i in range(len(param_values)):
+            for j in range(i + 1, len(param_values)):
+                correlation = abs(param_values[i] * param_values[j])
+                correlations.append(correlation)
+        
+        if correlations:
+            avg_correlation = sum(correlations) / len(correlations)
+            optimal_correlation = 0.5  # Balanced entanglement
+            entanglement_score = 1.0 - abs(avg_correlation - optimal_correlation)
+            return entanglement_score * 0.05
+        
+        return 0.0
+    
+    def quantum_rotation(self, state: QuantumState, target_fitness: float) -> QuantumState:
+        """Apply quantum rotation operator for evolution."""
+        current_fitness = state.probability
+        fitness_diff = target_fitness - current_fitness
+        rotation_angle = self.quantum_rotation_angle * fitness_diff
+        
+        # Quantum rotation transformation
+        cos_theta = math.cos(rotation_angle)
+        sin_theta = math.sin(rotation_angle)
+        
+        new_amplitude = complex(
+            state.amplitude.real * cos_theta - state.amplitude.imag * sin_theta,
+            state.amplitude.real * sin_theta + state.amplitude.imag * cos_theta
+        )
+        
+        # Quantum tunneling mutation
+        new_parameters = {}
+        for param_name, param_value in state.parameters.items():
+            if random.random() < self.mutation_rate:
+                tunneling_factor = random.gauss(0, 0.1)
+                new_parameters[param_name] = param_value + tunneling_factor
+            else:
+                new_parameters[param_name] = param_value
+        
+        return QuantumState(
+            amplitude=new_amplitude,
+            probability=0.0,
+            parameters=new_parameters
+        )
+    
+    def optimize(self, 
+                parameter_bounds: Dict[str, Tuple[float, float]],
+                evaluation_data: List[Tuple[Scenario, SkepticResponse, EvaluationMetrics]]) -> Dict[str, float]:
+        """Run quantum-inspired optimization."""
+        self.initialize_population(parameter_bounds)
+        
+        for generation in range(self.max_generations):
+            # Evaluate quantum population fitness
+            fitness_scores = []
+            for state in self.population:
+                fitness = self.fitness_function(state.parameters, evaluation_data)
+                fitness_scores.append(fitness)
+                state.probability = fitness
+            
+            # Track best solution
+            best_index = max(range(len(fitness_scores)), key=lambda i: fitness_scores[i])
+            if self.best_solution is None or fitness_scores[best_index] > max(self.fitness_history, default=0):
+                self.best_solution = self.population[best_index]
+            
+            self.fitness_history.append(max(fitness_scores))
+            
+            # Quantum evolution
+            target_fitness = max(fitness_scores)
+            new_population = []
+            
+            # Evolve population through quantum operations
+            for state in self.population:
+                if random.random() < state.probability:
+                    evolved_state = self.quantum_rotation(state, target_fitness)
+                    new_population.append(evolved_state)
+            
+            # Quantum crossover for remaining population
+            while len(new_population) < self.population_size:
+                parent1 = random.choice(self.population)
+                parent2 = random.choice(self.population)
+                
+                child_parameters = {}
+                for param_name in parameter_bounds.keys():
+                    if random.random() < 0.5:
+                        child_parameters[param_name] = parent1.parameters[param_name]
+                    else:
+                        child_parameters[param_name] = parent2.parameters[param_name]
+                
+                child_amplitude = (parent1.amplitude + parent2.amplitude) / 2
+                child_state = QuantumState(
+                    amplitude=child_amplitude,
+                    probability=0.0,
+                    parameters=child_parameters
+                )
+                new_population.append(child_state)
+            
+            self.population = new_population
+        
+        return self.best_solution.parameters if self.best_solution else {}
+
+
+class SkepticismCalibrator:
+    """Advanced skepticism calibration using quantum optimization."""
+    
+    def __init__(self):
+        self.optimizer = QuantumInspiredOptimizer()
+        self.calibration_history: List[Dict[str, Any]] = []
+    
+    def calibrate_agent_parameters(self, 
+                                  historical_evaluations: List[Tuple[Scenario, SkepticResponse, EvaluationMetrics]],
+                                  target_metrics: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+        """Calibrate agent parameters for optimal skepticism."""
+        
+        parameter_bounds = {
+            "temperature": (0.1, 1.0),
+            "skepticism_threshold": (0.3, 0.8),
+            "evidence_weight": (0.5, 1.5),
+            "confidence_adjustment": (-0.3, 0.3),
+            "reasoning_depth": (0.5, 2.0)
+        }
+        
+        # Run quantum optimization
+        optimal_params = self.optimizer.optimize(parameter_bounds, historical_evaluations)
+        
+        # Store calibration results
+        calibration_result = {
+            "timestamp": time.time(),
+            "optimal_parameters": optimal_params,
+            "fitness_history": self.optimizer.fitness_history,
+            "evaluation_count": len(historical_evaluations),
+            "target_metrics": target_metrics or {}
+        }
+        
+        self.calibration_history.append(calibration_result)
+        
+        return optimal_params
+    
+    def predict_optimal_skepticism(self, 
+                                  scenario: Scenario, 
+                                  agent_parameters: Dict[str, float]) -> float:
+        """Predict optimal skepticism level using quantum uncertainty."""
+        base_skepticism = scenario.correct_skepticism_level
+        skepticism_threshold = agent_parameters.get("skepticism_threshold", 0.5)
+        evidence_weight = agent_parameters.get("evidence_weight", 1.0)
+        
+        # Quantum uncertainty calculation
+        uncertainty_factor = self._calculate_quantum_uncertainty(scenario)
+        
+        predicted_skepticism = (
+            base_skepticism * 0.4 +
+            skepticism_threshold * 0.3 +
+            uncertainty_factor * evidence_weight * 0.3
+        )
+        
+        return max(0.0, min(1.0, predicted_skepticism))
+    
+    def _calculate_quantum_uncertainty(self, scenario: Scenario) -> float:
+        """Calculate quantum uncertainty for scenario evaluation."""
+        complexity_factors = [
+            len(scenario.description) / 1000.0,
+            len(scenario.adversary_claim.split()) / 50.0 if hasattr(scenario, 'adversary_claim') else 0.5,
+            scenario.metadata.get("evidence_quality", 0.5),
+            1.0 - scenario.metadata.get("plausibility", 0.5)
+        ]
+        
+        # Quantum superposition of uncertainty
+        uncertainty = sum(factor * random.gauss(1.0, 0.1) for factor in complexity_factors)
+        uncertainty = uncertainty / len(complexity_factors)
+        
+        return max(0.0, min(1.0, uncertainty))
+    
+    def get_calibration_report(self) -> Dict[str, Any]:
+        """Generate comprehensive calibration report."""
+        if not self.calibration_history:
+            return {"error": "No calibration history available"}
+        
+        latest = self.calibration_history[-1]
+        
+        return {
+            "total_calibrations": len(self.calibration_history),
+            "latest_calibration": latest,
+            "parameter_evolution": self._analyze_parameter_evolution(),
+            "optimization_performance": self._analyze_optimization_performance(),
+            "recommendations": self._generate_recommendations()
+        }
+    
+    def _analyze_parameter_evolution(self) -> Dict[str, List[float]]:
+        """Analyze parameter evolution across calibrations."""
+        evolution = {}
+        for calibration in self.calibration_history:
+            params = calibration["optimal_parameters"]
+            for param_name, param_value in params.items():
+                if param_name not in evolution:
+                    evolution[param_name] = []
+                evolution[param_name].append(param_value)
+        return evolution
+    
+    def _analyze_optimization_performance(self) -> Dict[str, float]:
+        """Analyze optimization performance trends."""
+        if not self.calibration_history:
+            return {}
+        
+        fitness_trends = [cal["fitness_history"][-1] for cal in self.calibration_history]
+        return {
+            "average_final_fitness": sum(fitness_trends) / len(fitness_trends),
+            "fitness_improvement": fitness_trends[-1] - fitness_trends[0] if len(fitness_trends) > 1 else 0.0,
+            "optimization_stability": self._calculate_stability(fitness_trends)
+        }
+    
+    def _calculate_stability(self, values: List[float]) -> float:
+        """Calculate optimization stability metric."""
+        if len(values) < 2:
+            return 1.0
+        
+        mean_value = sum(values) / len(values)
+        variance = sum((v - mean_value) ** 2 for v in values) / len(values)
+        
+        if mean_value > 0:
+            relative_variance = variance / (mean_value ** 2)
+            stability = 1.0 / (1.0 + relative_variance)
+        else:
+            stability = 0.0
+        
+        return stability
+    
+    def _generate_recommendations(self) -> List[str]:
+        """Generate optimization recommendations."""
+        recommendations = []
+        
+        if not self.calibration_history:
+            return ["No calibration data available"]
+        
+        latest = self.calibration_history[-1]
+        params = latest["optimal_parameters"]
+        
+        if params.get("temperature", 0.5) > 0.8:
+            recommendations.append("High temperature detected - consider lowering for more consistent responses")
+        if params.get("skepticism_threshold", 0.5) < 0.3:
+            recommendations.append("Low skepticism threshold - agent may be too trusting")
+        if len(latest["fitness_history"]) > 10 and latest["fitness_history"][-1] < 0.7:
+            recommendations.append("Suboptimal fitness achieved - consider expanding parameter search space")
+        
+        return recommendations if recommendations else ["Optimization appears well-calibrated"]

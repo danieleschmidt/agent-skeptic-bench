@@ -25,6 +25,7 @@ from .exceptions import (
     ScenarioNotFoundError
 )
 from .validation import response_validator
+from .algorithms.optimization import QuantumInspiredOptimizer, SkepticismCalibrator
 
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class SkepticBenchmark:
         self.agent_factory = agent_factory or AgentFactory()
         self.metrics_calculator = metrics_calculator or MetricsCalculator()
         self._active_sessions: Dict[str, BenchmarkSession] = {}
+        self.quantum_calibrator = SkepticismCalibrator()
     
     def get_scenario(self, scenario_id: str) -> Optional[Scenario]:
         """Get a specific scenario by ID."""
@@ -379,3 +381,112 @@ class SkepticBenchmark:
             logger.info(f"Cleaned up session: {session_id}")
             return True
         return False
+    
+    def optimize_agent_parameters(self, 
+                                 session_id: str, 
+                                 target_metrics: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+        """Optimize agent parameters using quantum-inspired algorithms."""
+        session = self._active_sessions.get(session_id)
+        if not session or not session.results:
+            raise ValueError(f"No valid session found with results: {session_id}")
+        
+        # Convert session results to optimization format
+        evaluation_data = []
+        for result in session.results:
+            evaluation_data.append((result.scenario, result.response, result.metrics))
+        
+        # Run quantum optimization
+        optimal_params = self.quantum_calibrator.calibrate_agent_parameters(
+            evaluation_data, target_metrics
+        )
+        
+        logger.info(f"Optimized parameters for session {session_id}: {optimal_params}")
+        return optimal_params
+    
+    def predict_scenario_difficulty(self, scenario: Scenario, agent_params: Dict[str, float]) -> float:
+        """Predict scenario difficulty using quantum uncertainty principles."""
+        predicted_skepticism = self.quantum_calibrator.predict_optimal_skepticism(
+            scenario, agent_params
+        )
+        
+        # Difficulty correlates with uncertainty in optimal skepticism
+        base_difficulty = abs(predicted_skepticism - 0.5) * 2  # Distance from neutral
+        complexity_adjustment = len(scenario.description) / 1000.0  # Text complexity
+        
+        difficulty = (base_difficulty + complexity_adjustment) / 2
+        return max(0.0, min(1.0, difficulty))
+    
+    def get_quantum_insights(self, session_id: str) -> Dict[str, any]:
+        """Get quantum-inspired insights for evaluation session."""
+        session = self._active_sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+        
+        if not session.results:
+            return {"error": "No results available"}
+        
+        # Analyze quantum coherence across evaluations
+        coherence_scores = []
+        entanglement_measures = []
+        
+        for result in session.results:
+            # Calculate quantum coherence
+            expected = result.scenario.correct_skepticism_level
+            actual = result.response.confidence_level
+            coherence = 1.0 - abs(expected - actual)
+            coherence_scores.append(coherence)
+            
+            # Measure parameter entanglement
+            param_correlation = self._calculate_parameter_entanglement(result)
+            entanglement_measures.append(param_correlation)
+        
+        avg_coherence = sum(coherence_scores) / len(coherence_scores)
+        avg_entanglement = sum(entanglement_measures) / len(entanglement_measures)
+        
+        return {
+            "quantum_coherence": avg_coherence,
+            "parameter_entanglement": avg_entanglement,
+            "coherence_distribution": coherence_scores,
+            "entanglement_distribution": entanglement_measures,
+            "optimization_recommendations": self._generate_quantum_recommendations(
+                avg_coherence, avg_entanglement
+            )
+        }
+    
+    def _calculate_parameter_entanglement(self, result: EvaluationResult) -> float:
+        """Calculate quantum entanglement measure for evaluation parameters."""
+        # Use metrics as proxy for parameter entanglement
+        metrics_values = [
+            result.metrics.skepticism_calibration,
+            result.metrics.evidence_standard_score,
+            result.metrics.red_flag_detection,
+            result.metrics.reasoning_quality
+        ]
+        
+        # Calculate correlations between metrics
+        correlations = []
+        for i in range(len(metrics_values)):
+            for j in range(i + 1, len(metrics_values)):
+                correlation = abs(metrics_values[i] * metrics_values[j])
+                correlations.append(correlation)
+        
+        return sum(correlations) / len(correlations) if correlations else 0.0
+    
+    def _generate_quantum_recommendations(self, coherence: float, entanglement: float) -> List[str]:
+        """Generate recommendations based on quantum analysis."""
+        recommendations = []
+        
+        if coherence < 0.3:
+            recommendations.append("Low quantum coherence detected - agent responses may be inconsistent")
+        elif coherence > 0.8:
+            recommendations.append("High quantum coherence - agent shows good skepticism alignment")
+        
+        if entanglement < 0.2:
+            recommendations.append("Low parameter entanglement - metrics may be operating independently")
+        elif entanglement > 0.7:
+            recommendations.append("High parameter entanglement - strong correlation between evaluation metrics")
+        
+        if coherence > 0.6 and entanglement > 0.5:
+            recommendations.append("Optimal quantum state achieved - agent is well-calibrated")
+        
+        return recommendations if recommendations else ["Quantum analysis complete - no specific recommendations"]
