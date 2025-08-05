@@ -375,6 +375,182 @@ def performance_cache(ttl: int = 3600):
     return decorator
 
 
+class AutoScalingManager:
+    """Advanced auto-scaling manager for quantum-enhanced evaluation systems."""
+    
+    def __init__(self):
+        self.scaling_history = []
+        self.performance_thresholds = {
+            "cpu_high": 75.0,
+            "memory_high": 80.0,
+            "response_time_high": 3000,  # ms
+            "queue_depth_high": 100,
+        }
+        self.scaling_factors = {
+            "scale_up_cpu": 1.5,
+            "scale_up_memory": 1.3,
+            "scale_up_latency": 2.0,
+            "scale_down": 0.7
+        }
+        self.min_replicas = 1
+        self.max_replicas = 20
+        self.cooldown_period = 300  # seconds
+        self.last_scaling_action = 0
+    
+    def analyze_scaling_need(self, metrics: PerformanceMetrics) -> Dict[str, Any]:
+        """Analyze current metrics and determine scaling requirements."""
+        current_time = time.time()
+        
+        if current_time - self.last_scaling_action < self.cooldown_period:
+            return {"action": "wait", "reason": "Cooldown period active"}
+        
+        scaling_signals = []
+        
+        # CPU-based scaling
+        if metrics.cpu_usage_percent > self.performance_thresholds["cpu_high"]:
+            scaling_signals.append({
+                "metric": "cpu",
+                "action": "scale_up",
+                "factor": self.scaling_factors["scale_up_cpu"]
+            })
+        
+        return self._determine_scaling_action(scaling_signals)
+    
+    def _determine_scaling_action(self, signals: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Determine the optimal scaling action from multiple signals."""
+        if not signals:
+            return {"action": "maintain", "reason": "All metrics within normal range"}
+        
+        scale_up_signals = [s for s in signals if s["action"] == "scale_up"]
+        
+        if scale_up_signals:
+            most_urgent = scale_up_signals[0]
+            return {
+                "action": "scale_up",
+                "scale_factor": most_urgent["factor"],
+                "all_signals": signals
+            }
+        
+        return {"action": "maintain", "reason": "Mixed signals, maintaining current scale"}
+    
+    def calculate_target_replicas(self, current_replicas: int, scaling_decision: Dict[str, Any]) -> int:
+        """Calculate target number of replicas based on scaling decision."""
+        if scaling_decision["action"] == "maintain":
+            return current_replicas
+        
+        if scaling_decision["action"] == "scale_up":
+            factor = scaling_decision["scale_factor"]
+            target = int(current_replicas * factor)
+        else:
+            return current_replicas
+        
+        # Apply bounds
+        target = max(self.min_replicas, min(target, self.max_replicas))
+        
+        # Record scaling decision
+        self.scaling_history.append({
+            "timestamp": time.time(),
+            "current_replicas": current_replicas,
+            "target_replicas": target,
+            "action": scaling_decision["action"]
+        })
+        
+        if scaling_decision["action"] in ["scale_up", "scale_down"]:
+            self.last_scaling_action = time.time()
+        
+        return target
+
+
+class LoadBalancer:
+    """Intelligent load balancer for distributing evaluation tasks."""
+    
+    def __init__(self):
+        self.workers = {}
+        self.load_distribution_strategy = "quantum_weighted"
+    
+    def register_worker(self, worker_id: str, capacity: int, quantum_coherence: float = 1.0):
+        """Register a new worker with quantum-enhanced capabilities."""
+        self.workers[worker_id] = {
+            "capacity": capacity,
+            "current_load": 0,
+            "quantum_coherence": quantum_coherence,
+            "health_status": "healthy",
+            "completed_tasks": 0,
+            "failed_tasks": 0
+        }
+    
+    def select_optimal_worker(self, task_complexity: float = 0.5) -> Optional[str]:
+        """Select optimal worker using quantum-inspired load balancing."""
+        healthy_workers = {
+            wid: worker for wid, worker in self.workers.items()
+            if worker["health_status"] == "healthy"
+        }
+        
+        if not healthy_workers:
+            return None
+        
+        if self.load_distribution_strategy == "quantum_weighted":
+            return self._quantum_weighted_selection(healthy_workers, task_complexity)
+        else:
+            return list(healthy_workers.keys())[0]  # Fallback
+    
+    def _quantum_weighted_selection(self, workers: Dict[str, Dict], task_complexity: float) -> str:
+        """Select worker using quantum-inspired weighting algorithm."""
+        worker_scores = {}
+        
+        for worker_id, worker in workers.items():
+            # Base capacity score
+            capacity_score = (worker["capacity"] - worker["current_load"]) / worker["capacity"]
+            
+            # Quantum coherence bonus
+            coherence_bonus = worker["quantum_coherence"] * 0.3
+            
+            # Performance history factor
+            if worker["completed_tasks"] > 0:
+                success_rate = worker["completed_tasks"] / (worker["completed_tasks"] + worker["failed_tasks"])
+                performance_factor = success_rate * 0.4
+            else:
+                performance_factor = 0.2  # Neutral for new workers
+            
+            # Quantum superposition of scoring factors
+            quantum_score = capacity_score * 0.4 + coherence_bonus + performance_factor
+            
+            worker_scores[worker_id] = quantum_score
+        
+        # Select worker with highest quantum score
+        return max(worker_scores.keys(), key=lambda wid: worker_scores[wid])
+    
+    def assign_task(self, worker_id: str, task_id: str) -> bool:
+        """Assign task to worker."""
+        if worker_id not in self.workers:
+            return False
+        
+        worker = self.workers[worker_id]
+        if worker["current_load"] >= worker["capacity"]:
+            return False
+        
+        worker["current_load"] += 1
+        return True
+    
+    def complete_task(self, worker_id: str, task_id: str, success: bool, response_time_ms: float):
+        """Mark task as completed and update worker statistics."""
+        if worker_id not in self.workers:
+            return
+        
+        worker = self.workers[worker_id]
+        worker["current_load"] = max(0, worker["current_load"] - 1)
+        
+        if success:
+            worker["completed_tasks"] += 1
+        else:
+            worker["failed_tasks"] += 1
+
+
+# Global instances for production deployment
+global_auto_scaler = AutoScalingManager()
+global_load_balancer = LoadBalancer()
+
+
 def async_performance_cache(ttl: int = 3600):
     """Decorator for caching async function results."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -400,3 +576,179 @@ def async_performance_cache(ttl: int = 3600):
         
         return wrapper
     return decorator
+
+
+class AutoScalingManager:
+    """Advanced auto-scaling manager for quantum-enhanced evaluation systems."""
+    
+    def __init__(self):
+        self.scaling_history = []
+        self.performance_thresholds = {
+            "cpu_high": 75.0,
+            "memory_high": 80.0,
+            "response_time_high": 3000,  # ms
+            "queue_depth_high": 100,
+        }
+        self.scaling_factors = {
+            "scale_up_cpu": 1.5,
+            "scale_up_memory": 1.3,
+            "scale_up_latency": 2.0,
+            "scale_down": 0.7
+        }
+        self.min_replicas = 1
+        self.max_replicas = 20
+        self.cooldown_period = 300  # seconds
+        self.last_scaling_action = 0
+    
+    def analyze_scaling_need(self, metrics: PerformanceMetrics) -> Dict[str, Any]:
+        """Analyze current metrics and determine scaling requirements."""
+        current_time = time.time()
+        
+        if current_time - self.last_scaling_action < self.cooldown_period:
+            return {"action": "wait", "reason": "Cooldown period active"}
+        
+        scaling_signals = []
+        
+        # CPU-based scaling
+        if metrics.cpu_usage_percent > self.performance_thresholds["cpu_high"]:
+            scaling_signals.append({
+                "metric": "cpu",
+                "action": "scale_up",
+                "factor": self.scaling_factors["scale_up_cpu"]
+            })
+        
+        return self._determine_scaling_action(scaling_signals)
+    
+    def _determine_scaling_action(self, signals: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Determine the optimal scaling action from multiple signals."""
+        if not signals:
+            return {"action": "maintain", "reason": "All metrics within normal range"}
+        
+        scale_up_signals = [s for s in signals if s["action"] == "scale_up"]
+        
+        if scale_up_signals:
+            most_urgent = scale_up_signals[0]
+            return {
+                "action": "scale_up",
+                "scale_factor": most_urgent["factor"],
+                "all_signals": signals
+            }
+        
+        return {"action": "maintain", "reason": "Mixed signals, maintaining current scale"}
+    
+    def calculate_target_replicas(self, current_replicas: int, scaling_decision: Dict[str, Any]) -> int:
+        """Calculate target number of replicas based on scaling decision."""
+        if scaling_decision["action"] == "maintain":
+            return current_replicas
+        
+        if scaling_decision["action"] == "scale_up":
+            factor = scaling_decision["scale_factor"]
+            target = int(current_replicas * factor)
+        else:
+            return current_replicas
+        
+        # Apply bounds
+        target = max(self.min_replicas, min(target, self.max_replicas))
+        
+        # Record scaling decision
+        self.scaling_history.append({
+            "timestamp": time.time(),
+            "current_replicas": current_replicas,
+            "target_replicas": target,
+            "action": scaling_decision["action"]
+        })
+        
+        if scaling_decision["action"] in ["scale_up", "scale_down"]:
+            self.last_scaling_action = time.time()
+        
+        return target
+
+
+class LoadBalancer:
+    """Intelligent load balancer for distributing evaluation tasks."""
+    
+    def __init__(self):
+        self.workers = {}
+        self.load_distribution_strategy = "quantum_weighted"
+    
+    def register_worker(self, worker_id: str, capacity: int, quantum_coherence: float = 1.0):
+        """Register a new worker with quantum-enhanced capabilities."""
+        self.workers[worker_id] = {
+            "capacity": capacity,
+            "current_load": 0,
+            "quantum_coherence": quantum_coherence,
+            "health_status": "healthy",
+            "completed_tasks": 0,
+            "failed_tasks": 0
+        }
+    
+    def select_optimal_worker(self, task_complexity: float = 0.5) -> Optional[str]:
+        """Select optimal worker using quantum-inspired load balancing."""
+        healthy_workers = {
+            wid: worker for wid, worker in self.workers.items()
+            if worker["health_status"] == "healthy"
+        }
+        
+        if not healthy_workers:
+            return None
+        
+        if self.load_distribution_strategy == "quantum_weighted":
+            return self._quantum_weighted_selection(healthy_workers, task_complexity)
+        else:
+            return list(healthy_workers.keys())[0]  # Fallback
+    
+    def _quantum_weighted_selection(self, workers: Dict[str, Dict], task_complexity: float) -> str:
+        """Select worker using quantum-inspired weighting algorithm."""
+        worker_scores = {}
+        
+        for worker_id, worker in workers.items():
+            # Base capacity score
+            capacity_score = (worker["capacity"] - worker["current_load"]) / worker["capacity"]
+            
+            # Quantum coherence bonus
+            coherence_bonus = worker["quantum_coherence"] * 0.3
+            
+            # Performance history factor
+            if worker["completed_tasks"] > 0:
+                success_rate = worker["completed_tasks"] / (worker["completed_tasks"] + worker["failed_tasks"])
+                performance_factor = success_rate * 0.4
+            else:
+                performance_factor = 0.2  # Neutral for new workers
+            
+            # Quantum superposition of scoring factors
+            quantum_score = capacity_score * 0.4 + coherence_bonus + performance_factor
+            
+            worker_scores[worker_id] = quantum_score
+        
+        # Select worker with highest quantum score
+        return max(worker_scores.keys(), key=lambda wid: worker_scores[wid])
+    
+    def assign_task(self, worker_id: str, task_id: str) -> bool:
+        """Assign task to worker."""
+        if worker_id not in self.workers:
+            return False
+        
+        worker = self.workers[worker_id]
+        if worker["current_load"] >= worker["capacity"]:
+            return False
+        
+        worker["current_load"] += 1
+        return True
+    
+    def complete_task(self, worker_id: str, task_id: str, success: bool, response_time_ms: float):
+        """Mark task as completed and update worker statistics."""
+        if worker_id not in self.workers:
+            return
+        
+        worker = self.workers[worker_id]
+        worker["current_load"] = max(0, worker["current_load"] - 1)
+        
+        if success:
+            worker["completed_tasks"] += 1
+        else:
+            worker["failed_tasks"] += 1
+
+
+# Global instances for production deployment
+global_auto_scaler = AutoScalingManager()
+global_load_balancer = LoadBalancer()

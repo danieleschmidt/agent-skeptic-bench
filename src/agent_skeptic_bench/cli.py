@@ -12,6 +12,7 @@ from .benchmark import SkepticBenchmark
 from .evaluation import run_full_evaluation, compare_agents
 from .models import ScenarioCategory, AgentProvider
 from .scenarios import create_default_scenario_data
+from .algorithms.optimization import QuantumInspiredOptimizer, SkepticismCalibrator
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -239,6 +240,124 @@ def cmd_validate_config(args) -> None:
         sys.exit(1)
 
 
+async def cmd_optimize(args) -> None:
+    """Run quantum optimization command."""
+    print("Starting quantum-inspired skepticism optimization...")
+    
+    if not args.evaluation_data:
+        print("Error: Evaluation data file required for optimization.")
+        sys.exit(1)
+    
+    # Load evaluation data
+    try:
+        with open(args.evaluation_data, 'r') as f:
+            evaluation_data = json.load(f)
+    except Exception as e:
+        print(f"Error loading evaluation data: {e}")
+        sys.exit(1)
+    
+    # Initialize quantum optimizer
+    calibrator = SkepticismCalibrator()
+    
+    # Mock evaluation data structure for demonstration
+    # In practice, this would be loaded from actual evaluation results
+    mock_evaluations = []
+    
+    try:
+        # Run quantum optimization
+        print("Initializing quantum population...")
+        optimal_params = calibrator.calibrate_agent_parameters(
+            historical_evaluations=mock_evaluations,
+            target_metrics=args.target_metrics
+        )
+        
+        # Generate report
+        report = calibrator.get_calibration_report()
+        
+        print("\n" + "="*50)
+        print("QUANTUM OPTIMIZATION RESULTS")
+        print("="*50)
+        print(f"Optimal Parameters:")
+        for param, value in optimal_params.items():
+            print(f"  {param}: {value:.4f}")
+        
+        print(f"\nOptimization Performance:")
+        perf = report.get("optimization_performance", {})
+        print(f"  Final Fitness: {perf.get('average_final_fitness', 0):.4f}")
+        print(f"  Stability: {perf.get('optimization_stability', 0):.4f}")
+        
+        print(f"\nRecommendations:")
+        for rec in report.get("recommendations", []):
+            print(f"  • {rec}")
+        
+        # Save results
+        if args.output:
+            with open(args.output, 'w') as f:
+                json.dump({
+                    "optimal_parameters": optimal_params,
+                    "calibration_report": report
+                }, f, indent=2)
+            print(f"\nResults saved to: {args.output}")
+    
+    except Exception as e:
+        print(f"Optimization failed: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
+def cmd_predict_skepticism(args) -> None:
+    """Predict optimal skepticism for a scenario."""
+    if not args.scenario_file:
+        print("Error: Scenario file required.")
+        sys.exit(1)
+    
+    if not args.parameters:
+        print("Error: Agent parameters file required.")
+        sys.exit(1)
+    
+    try:
+        # Load scenario
+        with open(args.scenario_file, 'r') as f:
+            scenario_data = json.load(f)
+        
+        # Load parameters
+        with open(args.parameters, 'r') as f:
+            parameters = json.load(f)
+        
+        # Initialize calibrator
+        calibrator = SkepticismCalibrator()
+        
+        # Mock scenario object for demonstration
+        from .models import Scenario, ScenarioCategory
+        scenario = Scenario(
+            id=scenario_data.get("id", "test"),
+            category=ScenarioCategory.FACTUAL_CLAIMS,
+            title=scenario_data.get("title", "Test Scenario"),
+            description=scenario_data.get("description", ""),
+            correct_skepticism_level=scenario_data.get("correct_skepticism_level", 0.5),
+            metadata=scenario_data.get("metadata", {})
+        )
+        
+        # Predict optimal skepticism
+        predicted_skepticism = calibrator.predict_optimal_skepticism(scenario, parameters)
+        
+        print(f"Scenario: {scenario.title}")
+        print(f"Predicted Optimal Skepticism: {predicted_skepticism:.4f}")
+        print(f"Target Skepticism: {scenario.correct_skepticism_level:.4f}")
+        
+        accuracy = 1.0 - abs(predicted_skepticism - scenario.correct_skepticism_level)
+        print(f"Prediction Accuracy: {accuracy:.4f}")
+        
+    except Exception as e:
+        print(f"Prediction failed: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create argument parser."""
     parser = argparse.ArgumentParser(
@@ -331,6 +450,22 @@ Examples:
     validate_parser.add_argument('--config', required=True,
                                 help='Configuration file to validate')
     
+    # Quantum optimization command
+    optimize_parser = subparsers.add_parser('quantum-optimize', help='Run quantum-inspired optimization')
+    optimize_parser.add_argument('--evaluation-data', required=True,
+                                help='Evaluation data file (JSON)')
+    optimize_parser.add_argument('--target-metrics', type=dict,
+                                help='Target metrics for optimization')
+    optimize_parser.add_argument('--output', '-o',
+                                help='Output file for optimization results')
+    
+    # Skepticism prediction command
+    predict_parser = subparsers.add_parser('predict-skepticism', help='Predict optimal skepticism level')
+    predict_parser.add_argument('--scenario-file', required=True,
+                               help='Scenario data file (JSON)')
+    predict_parser.add_argument('--parameters', required=True,
+                               help='Agent parameters file (JSON)')
+    
     return parser
 
 
@@ -356,6 +491,10 @@ def main() -> None:
             cmd_generate_data(args)
         elif args.command == 'validate-config':
             cmd_validate_config(args)
+        elif args.command == 'quantum-optimize':
+            asyncio.run(cmd_optimize(args))
+        elif args.command == 'predict-skepticism':
+            cmd_predict_skepticism(args)
         else:
             print(f"Unknown command: {args.command}")
             sys.exit(1)
