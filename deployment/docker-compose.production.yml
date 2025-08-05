@@ -1,0 +1,218 @@
+version: '3.8'
+
+services:
+  # Main Agent Skeptic Bench API
+  agent-skeptic-bench-api:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: production
+    container_name: agent-skeptic-bench-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - API_PORT=8000
+      - WORKERS=4
+      - LOG_LEVEL=info
+      - QUANTUM_OPTIMIZATION_ENABLED=true
+      - AUTO_SCALING_ENABLED=true
+      - CACHE_BACKEND=redis
+      - CACHE_TTL=3600
+      - SECURITY_VALIDATION_ENABLED=true
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=1000
+      - PROMETHEUS_METRICS_ENABLED=true
+      - JAEGER_TRACING_ENABLED=true
+    depends_on:
+      - redis
+      - postgres
+      - prometheus
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs
+    networks:
+      - agent-skeptic-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: agent-skeptic-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - agent-skeptic-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # PostgreSQL for persistent data storage
+  postgres:
+    image: postgres:15-alpine
+    container_name: agent-skeptic-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=agent_skeptic_bench
+      - POSTGRES_USER=skeptic_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-secure_password_123}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - agent-skeptic-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skeptic_user -d agent_skeptic_bench"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agent-skeptic-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - agent-skeptic-network
+    depends_on:
+      - agent-skeptic-bench-api
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agent-skeptic-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-dashboard.json:/etc/grafana/provisioning/dashboards/agent-skeptic-dashboard.json:ro
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    networks:
+      - agent-skeptic-network
+    depends_on:
+      - prometheus
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: agent-skeptic-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - agent-skeptic-network
+
+  # Nginx as reverse proxy and load balancer
+  nginx:
+    image: nginx:alpine
+    container_name: agent-skeptic-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - agent-skeptic-network
+    depends_on:
+      - agent-skeptic-bench-api
+
+  # Auto-scaler service
+  auto-scaler:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: auto-scaler
+    container_name: agent-skeptic-auto-scaler
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - SCALING_CHECK_INTERVAL=60
+      - MIN_REPLICAS=2
+      - MAX_REPLICAS=20
+      - CPU_THRESHOLD_HIGH=75
+      - CPU_THRESHOLD_LOW=30
+      - MEMORY_THRESHOLD_HIGH=80
+      - RESPONSE_TIME_THRESHOLD=2000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - agent-skeptic-network
+    depends_on:
+      - agent-skeptic-bench-api
+      - prometheus
+
+networks:
+  agent-skeptic-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  nginx_logs:
+    driver: local
