@@ -1,0 +1,339 @@
+version: '3.8'
+
+# Edge Computing Deployment for Agent Skeptic Bench
+# Optimized for distributed evaluation across multiple regions
+
+services:
+  # Edge API Gateway with intelligent routing
+  edge-gateway:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: edge-gateway
+    container_name: agent-skeptic-edge-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ENVIRONMENT=edge
+      - EDGE_REGION=${EDGE_REGION:-us-east-1}
+      - EDGE_NODE_ID=${HOSTNAME}
+      - FEDERATION_ENABLED=true
+      - QUANTUM_OPTIMIZATION_ENABLED=true
+      - MULTIMODAL_PROCESSING_ENABLED=true
+      - AI_THREAT_DETECTION_ENABLED=true
+      - AUTO_SCALING_ENABLED=true
+      - LOAD_BALANCING_STRATEGY=quantum_weighted
+      - CACHE_BACKEND=distributed
+      - CACHE_TTL=1800
+      - SECURITY_LEVEL=high
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=2000
+      - EDGE_SYNC_INTERVAL=300
+      - FEDERATED_LEARNING_ENABLED=true
+    depends_on:
+      - edge-redis
+      - edge-evaluator
+    volumes:
+      - ../data:/app/data:ro
+      - ../logs:/app/logs
+      - edge_models:/app/models
+    networks:
+      - edge-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.8'
+        reservations:
+          memory: 512M
+          cpus: '0.4'
+
+  # Edge Evaluation Service with Quantum Optimization
+  edge-evaluator:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: edge-evaluator
+    container_name: agent-skeptic-edge-evaluator
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=edge
+      - EDGE_REGION=${EDGE_REGION:-us-east-1}
+      - EVALUATOR_MODE=distributed
+      - QUANTUM_POPULATION_SIZE=30
+      - QUANTUM_GENERATIONS=75
+      - QUANTUM_COHERENCE_THRESHOLD=0.85
+      - MULTIMODAL_VALIDATION_ENABLED=true
+      - AI_THREAT_DETECTION_ENABLED=true
+      - FEDERATED_NODE_ID=${HOSTNAME}
+      - FEDERATION_SYNC_INTERVAL=600
+      - ADAPTIVE_LEARNING_ENABLED=true
+      - PERFORMANCE_OPTIMIZATION_LEVEL=high
+    depends_on:
+      - edge-redis
+      - edge-coordinator
+    volumes:
+      - edge_models:/app/models
+      - edge_cache:/app/cache
+    networks:
+      - edge-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 1G
+          cpus: '0.8'
+
+  # Edge Coordinator for Federation
+  edge-coordinator:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: edge-coordinator
+    container_name: agent-skeptic-edge-coordinator
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=edge
+      - COORDINATOR_MODE=edge
+      - FEDERATION_PROTOCOL=quantum_secure
+      - DIFFERENTIAL_PRIVACY_EPSILON=1.0
+      - SECURE_AGGREGATION_ENABLED=true
+      - MIN_NODES_FOR_UPDATE=2
+      - MAX_NODES_PER_FEDERATION=50
+      - COMMUNICATION_ENCRYPTION=aes-256
+      - CONSENSUS_ALGORITHM=quantum_byzantine
+      - MODEL_COMPRESSION_ENABLED=true
+      - BANDWIDTH_OPTIMIZATION=true
+    volumes:
+      - edge_federation:/app/federation
+      - edge_models:/app/models:ro
+    networks:
+      - edge-network
+      - federation-network
+    ports:
+      - "9080:9080"  # Federation communication port
+
+  # Edge Redis with Clustering
+  edge-redis:
+    image: redis:7-alpine
+    container_name: agent-skeptic-edge-redis
+    restart: unless-stopped
+    command: >
+      redis-server 
+      --appendonly yes 
+      --cluster-enabled yes 
+      --cluster-config-file nodes.conf 
+      --cluster-node-timeout 5000
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+    volumes:
+      - edge_redis_data:/data
+    networks:
+      - edge-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+
+  # Edge Metrics Collector
+  edge-metrics:
+    image: prom/prometheus:latest
+    container_name: agent-skeptic-edge-metrics
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/edge-prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.min-block-duration=1h'
+      - '--storage.tsdb.max-block-duration=2h'
+    volumes:
+      - ./edge-prometheus.yml:/etc/prometheus/edge-prometheus.yml:ro
+      - ./edge-alert-rules.yml:/etc/prometheus/edge-alert-rules.yml:ro
+      - edge_metrics_data:/prometheus
+    networks:
+      - edge-network
+    ports:
+      - "9091:9090"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.3'
+
+  # Lightweight Edge Dashboard
+  edge-dashboard:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: edge-dashboard
+    container_name: agent-skeptic-edge-dashboard
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - DASHBOARD_MODE=edge
+      - METRICS_SOURCE=edge-metrics:9090
+      - UPDATE_INTERVAL=30
+      - QUANTUM_METRICS_ENABLED=true
+      - FEDERATION_METRICS_ENABLED=true
+      - REAL_TIME_MONITORING=true
+    networks:
+      - edge-network
+    depends_on:
+      - edge-metrics
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+
+  # Edge Security Scanner
+  edge-security:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: edge-security
+    container_name: agent-skeptic-edge-security
+    restart: unless-stopped
+    environment:
+      - SECURITY_MODE=edge
+      - AI_THREAT_DETECTION_LEVEL=high
+      - MULTIMODAL_VALIDATION_ENABLED=true
+      - REAL_TIME_SCANNING=true
+      - THREAT_SHARING_ENABLED=true
+      - FEDERATION_SECURITY_SYNC=true
+      - ANOMALY_DETECTION_SENSITIVITY=0.85
+      - QUARANTINE_ENABLED=true
+    volumes:
+      - edge_security_logs:/app/security/logs
+      - edge_threat_intel:/app/security/intel
+    networks:
+      - edge-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.4'
+
+  # Edge Load Balancer with Quantum Weighting
+  edge-lb:
+    image: nginx:alpine
+    container_name: agent-skeptic-edge-lb
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./edge-nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - edge_lb_logs:/var/log/nginx
+    networks:
+      - edge-network
+    depends_on:
+      - edge-gateway
+      - edge-evaluator
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.2'
+
+  # Edge Auto-Scaler with Quantum Metrics
+  edge-auto-scaler:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: edge-auto-scaler
+    container_name: agent-skeptic-edge-auto-scaler
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=edge
+      - SCALING_STRATEGY=quantum_adaptive
+      - CHECK_INTERVAL=30
+      - MIN_REPLICAS=1
+      - MAX_REPLICAS=10
+      - CPU_THRESHOLD_HIGH=70
+      - CPU_THRESHOLD_LOW=20
+      - MEMORY_THRESHOLD_HIGH=75
+      - QUANTUM_COHERENCE_THRESHOLD=0.8
+      - FEDERATION_LOAD_BALANCING=true
+      - PREDICTIVE_SCALING=true
+      - EDGE_RESOURCE_CONSTRAINTS=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - edge-network
+    depends_on:
+      - edge-gateway
+      - edge-metrics
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+
+networks:
+  edge-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+  federation-network:
+    driver: overlay
+    attachable: true
+    ipam:
+      config:
+        - subnet: 10.1.0.0/16
+
+volumes:
+  edge_redis_data:
+    driver: local
+  edge_metrics_data:
+    driver: local
+  edge_models:
+    driver: local
+  edge_cache:
+    driver: local
+  edge_federation:
+    driver: local
+  edge_security_logs:
+    driver: local
+  edge_threat_intel:
+    driver: local
+  edge_lb_logs:
+    driver: local
+
+# Edge-specific configurations
+configs:
+  edge_prometheus_config:
+    file: ./edge-prometheus.yml
+  edge_nginx_config:
+    file: ./edge-nginx.conf
+  edge_security_config:
+    file: ./edge-security.yml
+
+# Secrets for secure federation
+secrets:
+  federation_key:
+    external: true
+  edge_tls_cert:
+    external: true
+  edge_tls_key:
+    external: true

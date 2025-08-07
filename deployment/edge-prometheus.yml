@@ -1,0 +1,86 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    edge_region: '${EDGE_REGION:-us-east-1}'
+    edge_node: '${HOSTNAME}'
+
+rule_files:
+  - "edge-alert-rules.yml"
+
+scrape_configs:
+  # Edge Gateway Metrics
+  - job_name: 'edge-gateway'
+    static_configs:
+      - targets: ['edge-gateway:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Edge Evaluator Metrics
+  - job_name: 'edge-evaluator'
+    static_configs:
+      - targets: ['edge-evaluator:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 5s
+
+  # Edge Coordinator Metrics
+  - job_name: 'edge-coordinator'
+    static_configs:
+      - targets: ['edge-coordinator:9080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Quantum Optimization Metrics
+  - job_name: 'quantum-optimizer'
+    static_configs:
+      - targets: ['edge-evaluator:8080']
+    metrics_path: '/quantum-metrics'
+    scrape_interval: 20s
+    scrape_timeout: 5s
+
+  # Federation Metrics
+  - job_name: 'federation'
+    static_configs:
+      - targets: ['edge-coordinator:9080']
+    metrics_path: '/federation-metrics'
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  # Security Metrics
+  - job_name: 'edge-security'
+    static_configs:
+      - targets: ['edge-security:8080']
+    metrics_path: '/security-metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # System Metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+    scrape_interval: 30s
+
+  # Redis Metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['edge-redis:6379']
+    scrape_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+remote_write:
+  - url: "https://metrics-collector.agent-skeptic-bench.org/api/v1/write"
+    basic_auth:
+      username: "${METRICS_USERNAME}"
+      password: "${METRICS_PASSWORD}"
+    queue_config:
+      max_samples_per_send: 1000
+      max_shards: 5
+      capacity: 10000
