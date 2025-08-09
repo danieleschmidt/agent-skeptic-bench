@@ -7,8 +7,77 @@ from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 from enum import Enum
 from datetime import datetime, timedelta
-import aiohttp
-import psutil
+
+# Handle optional dependencies with graceful fallbacks
+try:
+    import aiohttp
+    aiohttp_available = True
+except ImportError:
+    # Fallback stubs for aiohttp
+    class _MockClientSession:
+        def __init__(self, *args, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        def post(self, *args, **kwargs): return _MockResponse()
+        def get(self, *args, **kwargs): return _MockResponse()
+    
+    class _MockResponse:
+        def __init__(self):
+            self.status = 200
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+    
+    class _MockTimeout:
+        def __init__(self, *args, **kwargs): pass
+    
+    class _MockAiohttp:
+        ClientSession = _MockClientSession
+        ClientTimeout = _MockTimeout
+    
+    aiohttp = _MockAiohttp()
+    aiohttp_available = False
+
+try:
+    import psutil
+    psutil_available = True
+except ImportError:
+    # Fallback stubs for psutil
+    class _MockMemory:
+        def __init__(self):
+            self.percent = 0.0
+            self.used = 0
+    
+    class _MockDisk:
+        def __init__(self):
+            self.used = 0
+            self.total = 1
+    
+    class _MockNetworkIO:
+        def __init__(self):
+            self.bytes_sent = 0
+            self.bytes_recv = 0
+            self.packets_sent = 0
+            self.packets_recv = 0
+    
+    class _MockProcess:
+        def memory_info(self):
+            class MemInfo:
+                rss = 0
+                vms = 0
+            return MemInfo()
+        def num_threads(self): return 1
+        def open_files(self): return []
+    
+    class _MockPsutil:
+        def cpu_percent(self, interval=None): return 0.0
+        def virtual_memory(self): return _MockMemory()
+        def disk_usage(self, path): return _MockDisk()
+        def net_io_counters(self): return _MockNetworkIO()
+        def pids(self): return [1]
+        def Process(self): return _MockProcess()
+    
+    psutil = _MockPsutil()
+    psutil_available = False
 
 
 logger = logging.getLogger(__name__)
@@ -170,33 +239,47 @@ class HealthChecker:
     async def _check_system_resources(self) -> HealthCheckResult:
         """Check system resource usage."""
         try:
-            # CPU usage
-            cpu_usage = psutil.cpu_percent(interval=1)
-            
-            # Memory usage
-            memory = psutil.virtual_memory()
-            memory_usage = memory.percent
-            
-            # Disk usage
-            disk = psutil.disk_usage('/')
-            disk_usage = (disk.used / disk.total) * 100
-            
-            # Network I/O
-            network = psutil.net_io_counters()
-            network_io = {
-                'bytes_sent': network.bytes_sent,
-                'bytes_recv': network.bytes_recv,
-                'packets_sent': network.packets_sent,
-                'packets_recv': network.packets_recv
-            }
-            
-            # Process info
-            process_count = len(psutil.pids())
-            
-            # Open file descriptors
-            try:
-                open_fds = len(psutil.Process().open_files())
-            except:
+            if psutil_available:
+                # CPU usage
+                cpu_usage = psutil.cpu_percent(interval=1)
+                
+                # Memory usage
+                memory = psutil.virtual_memory()
+                memory_usage = memory.percent
+                
+                # Disk usage
+                disk = psutil.disk_usage('/')
+                disk_usage = (disk.used / disk.total) * 100
+                
+                # Network I/O
+                network = psutil.net_io_counters()
+                network_io = {
+                    'bytes_sent': network.bytes_sent,
+                    'bytes_recv': network.bytes_recv,
+                    'packets_sent': network.packets_sent,
+                    'packets_recv': network.packets_recv
+                }
+                
+                # Process info
+                process_count = len(psutil.pids())
+                
+                # Open file descriptors
+                try:
+                    open_fds = len(psutil.Process().open_files())
+                except:
+                    open_fds = 0
+            else:
+                # Use fallback values when psutil is not available
+                cpu_usage = 0.0
+                memory_usage = 0.0
+                disk_usage = 0.0
+                network_io = {
+                    'bytes_sent': 0,
+                    'bytes_recv': 0,
+                    'packets_sent': 0,
+                    'packets_recv': 0
+                }
+                process_count = 1
                 open_fds = 0
             
             # Uptime
@@ -214,13 +297,17 @@ class HealthChecker:
                   disk_usage > self.alert_thresholds['disk_usage']['warning']):
                 status = HealthStatus.DEGRADED
             
+            message = f"System resources: CPU {cpu_usage:.1f}%, Memory {memory_usage:.1f}%, Disk {disk_usage:.1f}%"
+            if not psutil_available:
+                message += " (fallback values - psutil not available)"
+            
             return HealthCheckResult(
                 component="system_resources",
                 component_type=ComponentType.SYSTEM_RESOURCES,
                 status=status,
                 response_time=0.0,
                 timestamp=datetime.utcnow(),
-                message=f"System resources: CPU {cpu_usage:.1f}%, Memory {memory_usage:.1f}%, Disk {disk_usage:.1f}%",
+                message=message,
                 details={
                     'cpu_usage': cpu_usage,
                     'memory_usage': memory_usage,
@@ -228,7 +315,8 @@ class HealthChecker:
                     'network_io': network_io,
                     'process_count': process_count,
                     'open_file_descriptors': open_fds,
-                    'uptime': uptime
+                    'uptime': uptime,
+                    'psutil_available': psutil_available
                 }
             )
             
@@ -298,6 +386,14 @@ class HealthChecker:
     
     async def check_external_service(self, service_url: str, timeout: float = 5.0) -> Dict[str, Any]:
         """Check external service health."""
+        if not aiohttp_available:
+            return {
+                'status': HealthStatus.HEALTHY,
+                'message': 'External service check not available (aiohttp not installed)',
+                'response_time': 0.0,
+                'http_status': 0
+            }
+            
         try:
             start_time = time.time()
             

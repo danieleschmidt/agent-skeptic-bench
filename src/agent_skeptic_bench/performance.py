@@ -8,7 +8,29 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-import psutil
+# Handle optional psutil dependency with graceful fallbacks
+try:
+    import psutil
+    psutil_available = True
+except ImportError:
+    # Fallback stubs for psutil
+    class _MockPsutil:
+        def cpu_percent(self, interval=None): return 0.0
+        def virtual_memory(self): 
+            class MemInfo:
+                percent = 0.0
+                used = 0
+                total = 1
+            return MemInfo()
+        def disk_usage(self, path): 
+            class DiskInfo:
+                used = 0
+                total = 1
+                percent = 0.0
+            return DiskInfo()
+    
+    psutil = _MockPsutil()
+    psutil_available = False
 
 from .models import Scenario, SkepticResponse, EvaluationResult
 from .exceptions import AgentTimeoutError

@@ -19,6 +19,7 @@ from .models import (
     SkepticResponse, EvaluationMetrics, EvaluationResult, 
     BenchmarkSession, AgentConfig, AgentProvider
 )
+from .evaluation import run_full_evaluation, EvaluationReport
 
 # Advanced features
 from .features import (
@@ -43,6 +44,8 @@ __all__ = [
     "AnthropicSkepticAgent",
     "GoogleSkepticAgent",
     "create_skeptic_agent",
+    "run_full_evaluation",
+    "EvaluationReport",
     
     # Models
     "Scenario",

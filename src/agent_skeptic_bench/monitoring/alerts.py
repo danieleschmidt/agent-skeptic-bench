@@ -9,8 +9,36 @@ from datetime import datetime, timedelta
 from enum import Enum
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import aiohttp
 import json
+
+# Handle optional aiohttp dependency with graceful fallbacks
+try:
+    import aiohttp
+    aiohttp_available = True
+except ImportError:
+    # Fallback stubs for aiohttp
+    class _MockClientSession:
+        def __init__(self, *args, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        def post(self, *args, **kwargs): return _MockResponse()
+        def get(self, *args, **kwargs): return _MockResponse()
+    
+    class _MockResponse:
+        def __init__(self):
+            self.status = 200
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+    
+    class _MockTimeout:
+        def __init__(self, *args, **kwargs): pass
+    
+    class _MockAiohttp:
+        ClientSession = _MockClientSession
+        ClientTimeout = _MockTimeout
+    
+    aiohttp = _MockAiohttp()
+    aiohttp_available = False
 
 
 logger = logging.getLogger(__name__)
@@ -324,6 +352,10 @@ Metric Values:
         if not self.notification_config.slack_webhook_url:
             return
         
+        if not aiohttp_available:
+            logger.warning("Slack notification not available (aiohttp not installed)")
+            return
+        
         color = {
             AlertSeverity.INFO: "good",
             AlertSeverity.WARNING: "warning",
@@ -375,6 +407,10 @@ Metric Values:
     async def _send_webhook_notification(self, alert: Alert) -> None:
         """Send webhook notification."""
         if not self.notification_config.webhook_urls:
+            return
+        
+        if not aiohttp_available:
+            logger.warning("Webhook notification not available (aiohttp not installed)")
             return
         
         payload = {

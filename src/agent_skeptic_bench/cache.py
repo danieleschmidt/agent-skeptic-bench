@@ -7,8 +7,32 @@ import os
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timedelta
 
-import redis
-from redis.asyncio import Redis as AsyncRedis
+try:
+    import redis
+    from redis.asyncio import Redis as AsyncRedis
+    REDIS_AVAILABLE = True
+except ImportError:
+    # Mock Redis classes
+    class redis:
+        class Redis:
+            def __init__(self, *args, **kwargs): pass
+            def get(self, key): return None
+            def set(self, key, value, ex=None): return True
+            def delete(self, key): return 1
+            def exists(self, key): return 0
+            def ping(self): return True
+            def close(self): pass
+    
+    class AsyncRedis:
+        def __init__(self, *args, **kwargs): pass
+        async def get(self, key): return None
+        async def set(self, key, value, ex=None): return True
+        async def delete(self, key): return 1
+        async def exists(self, key): return 0
+        async def ping(self): return True
+        async def close(self): pass
+    
+    REDIS_AVAILABLE = False
 
 from .database.repositories import CacheRepository
 

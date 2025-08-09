@@ -9,7 +9,49 @@ from dataclasses import dataclass, field
 from collections import deque, defaultdict
 from datetime import datetime, timedelta
 import statistics
-import psutil
+
+# Handle optional psutil dependency with graceful fallbacks
+try:
+    import psutil
+    psutil_available = True
+except ImportError:
+    # Fallback stubs for psutil
+    class _MockMemory:
+        def __init__(self):
+            self.percent = 0.0
+            self.used = 0
+    
+    class _MockDisk:
+        def __init__(self):
+            self.used = 0
+            self.total = 1
+    
+    class _MockNetworkIO:
+        def __init__(self):
+            self.bytes_sent = 0
+            self.bytes_recv = 0
+            self.packets_sent = 0
+            self.packets_recv = 0
+    
+    class _MockProcess:
+        def memory_info(self):
+            class MemInfo:
+                rss = 0
+                vms = 0
+            return MemInfo()
+        def num_threads(self): return 1
+        def open_files(self): return []
+    
+    class _MockPsutil:
+        def cpu_percent(self, interval=None): return 0.0
+        def virtual_memory(self): return _MockMemory()
+        def disk_usage(self, path): return _MockDisk()
+        def net_io_counters(self): return _MockNetworkIO()
+        def pids(self): return [1]
+        def Process(self): return _MockProcess()
+    
+    psutil = _MockPsutil()
+    psutil_available = False
 
 
 logger = logging.getLogger(__name__)
@@ -145,14 +187,21 @@ class PerformanceMonitor:
     async def _collect_metrics(self) -> PerformanceMetrics:
         """Collect current performance metrics."""
         # System metrics
-        cpu_usage = psutil.cpu_percent()
-        memory = psutil.virtual_memory()
-        memory_usage = memory.percent
-        
-        # Process metrics
-        process = psutil.Process()
-        memory_info = process.memory_info()
-        thread_count = process.num_threads()
+        if psutil_available:
+            cpu_usage = psutil.cpu_percent()
+            memory = psutil.virtual_memory()
+            memory_usage = memory.percent
+            
+            # Process metrics
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            thread_count = process.num_threads()
+        else:
+            # Use fallback values when psutil is not available
+            cpu_usage = 0.0
+            memory_usage = 0.0
+            memory_info = type('MemInfo', (), {'rss': 0, 'vms': 0})()
+            thread_count = 1
         
         # Application metrics
         with self._lock:

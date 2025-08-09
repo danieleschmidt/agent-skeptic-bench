@@ -515,8 +515,8 @@ class QueryOptimizer:
 class QuantumState:
     """Represents a quantum-inspired state for optimization."""
     amplitude: complex
-    probability: float
     parameters: Dict[str, float]
+    probability: float = 0.0
     
     def __post_init__(self):
         self.probability = abs(self.amplitude) ** 2

@@ -7,7 +7,14 @@ import json
 from typing import Any, Dict, List, Optional, Union, Callable
 from dataclasses import dataclass
 from enum import Enum
-import bleach
+# Handle optional bleach dependency
+try:
+    import bleach
+    BLEACH_AVAILABLE = True
+except ImportError:
+    # Fallback when bleach is not available
+    BLEACH_AVAILABLE = False
+    
 from urllib.parse import urlparse
 
 
@@ -99,6 +106,30 @@ class InputValidator:
             raise ValidationError(f"Validation failed: {', '.join(errors)}")
         
         return validated_data
+    
+    def validate_text(self, text: str, max_length: int = 10000) -> str:
+        """Validate and sanitize text input."""
+        if not isinstance(text, str):
+            try:
+                text = str(text)
+            except:
+                raise ValidationError("Value must be a string")
+        
+        # Check length
+        if len(text) > max_length:
+            raise ValidationError(f"Text too long (max {max_length} characters)")
+        
+        # Basic security checks
+        if self.patterns['sql_injection'].search(text):
+            raise ValidationError("Potentially unsafe SQL patterns detected")
+        
+        if self.patterns['xss_basic'].search(text):
+            raise ValidationError("Potentially unsafe script patterns detected")
+        
+        if self.patterns['command_injection'].search(text):
+            raise ValidationError("Potentially unsafe command injection patterns detected")
+        
+        return text
     
     def _validate_field(self, rule: ValidationRule, value: Any) -> Any:
         """Validate a single field."""
@@ -344,6 +375,10 @@ class InputSanitizer:
             'a': ['href', 'title'],
             'img': ['src', 'alt', 'width', 'height']
         }
+        
+        # Fallback HTML tag regex patterns when bleach is not available
+        self._script_pattern = re.compile(r'<\s*script[^>]*>.*?<\s*/\s*script\s*>', re.IGNORECASE | re.DOTALL)
+        self._tag_pattern = re.compile(r'<[^>]*>', re.IGNORECASE)
     
     def sanitize_string(self, value: str, max_length: int = None) -> str:
         """Sanitize a string value."""
@@ -367,15 +402,27 @@ class InputSanitizer:
         if not isinstance(value, str):
             value = str(value)
         
-        # Use bleach to sanitize HTML
-        sanitized = bleach.clean(
-            value,
-            tags=self.allowed_tags,
-            attributes=self.allowed_attributes,
-            strip=True
-        )
-        
-        return sanitized
+        if BLEACH_AVAILABLE:
+            # Use bleach to sanitize HTML
+            sanitized = bleach.clean(
+                value,
+                tags=self.allowed_tags,
+                attributes=self.allowed_attributes,
+                strip=True
+            )
+            return sanitized
+        else:
+            # Fallback: remove all HTML tags and escape entities
+            logger.warning("bleach not available, using basic HTML sanitization fallback")
+            
+            # Remove script tags first
+            value = self._script_pattern.sub('', value)
+            
+            # Remove all other HTML tags
+            value = self._tag_pattern.sub('', value)
+            
+            # Escape any remaining HTML entities
+            return html.escape(value, quote=True)
     
     def escape_html(self, value: str) -> str:
         """Escape HTML entities."""
