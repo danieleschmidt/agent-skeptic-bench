@@ -247,8 +247,49 @@ class ScenarioLoader:
         
         if not scenarios:
             raise ValueError("No scenarios available")
-        
-        return random.choice(scenarios)
+    
+    def load_scenario_from_file(self, file_path: str) -> Optional[Scenario]:
+        """Load a single scenario from a JSON file."""
+        try:
+            file_path_obj = Path(file_path)
+            if not file_path_obj.exists():
+                logger.warning(f"Scenario file does not exist: {file_path}")
+                return None
+            
+            with open(file_path_obj, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Handle both single scenario and scenario list formats
+            if isinstance(data, list):
+                scenario_data = data[0] if data else {}
+            elif 'scenarios' in data and isinstance(data['scenarios'], list):
+                scenario_data = data['scenarios'][0] if data['scenarios'] else {}
+            else:
+                scenario_data = data
+            
+            if not scenario_data:
+                logger.warning(f"No scenario data found in file: {file_path}")
+                return None
+            
+            # Create scenario with proper defaults
+            scenario = Scenario(
+                id=scenario_data.get('id', f'file_{file_path_obj.stem}'),
+                category=ScenarioCategory(scenario_data.get('category', 'factual_claims')),
+                name=scenario_data.get('name', 'Loaded Scenario'),
+                description=scenario_data.get('description', ''),
+                adversary_claim=scenario_data.get('adversary_claim', ''),
+                correct_skepticism_level=scenario_data.get('correct_skepticism_level', 0.5),
+                good_evidence_requests=scenario_data.get('good_evidence_requests', []),
+                red_flags=scenario_data.get('red_flags', []),
+                metadata=scenario_data.get('metadata', {})
+            )
+            
+            logger.info(f"Successfully loaded scenario from file: {file_path}")
+            return scenario
+            
+        except Exception as e:
+            logger.error(f"Failed to load scenario from file {file_path}: {e}")
+            return None
     
     def get_scenarios_by_difficulty(self, difficulty: str) -> List[Scenario]:
         """Get scenarios filtered by difficulty level."""

@@ -9,7 +9,15 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-import bcrypt
+# Handle optional bcrypt dependency
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except ImportError:
+    # Fallback for when bcrypt is not available
+    BCRYPT_AVAILABLE = False
+    import hashlib
+    
 import base64
 
 
@@ -193,14 +201,41 @@ class AuthenticationManager:
         return True
     
     def _hash_password(self, password: str) -> str:
-        """Hash password using bcrypt."""
-        salt = bcrypt.gensalt()
-        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        return hashed.decode('utf-8')
+        """Hash password using bcrypt or fallback to SHA-256 with salt."""
+        if BCRYPT_AVAILABLE:
+            salt = bcrypt.gensalt()
+            hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+            return hashed.decode('utf-8')
+        else:
+            # Fallback to SHA-256 with random salt
+            logger.warning("bcrypt not available, using SHA-256 fallback for password hashing")
+            salt = secrets.token_hex(16)
+            hashed = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+            return f"pbkdf2_sha256$100000${salt}${base64.b64encode(hashed).decode('utf-8')}"
     
     def _verify_password(self, password: str, hashed: str) -> bool:
         """Verify password against hash."""
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        if hashed.startswith('pbkdf2_sha256$'):
+            # Handle fallback hash format: pbkdf2_sha256$iterations$salt$hash
+            try:
+                _, iterations_str, salt, stored_hash = hashed.split('$', 3)
+                iterations = int(iterations_str)
+                computed_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+                return base64.b64encode(computed_hash).decode('utf-8') == stored_hash
+            except (ValueError, TypeError):
+                logger.error("Invalid fallback password hash format")
+                return False
+        elif BCRYPT_AVAILABLE:
+            # Use bcrypt verification
+            try:
+                return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+            except (ValueError, TypeError):
+                logger.error("Invalid bcrypt password hash")
+                return False
+        else:
+            # bcrypt not available and it's a bcrypt hash - cannot verify
+            logger.error("Cannot verify bcrypt hash when bcrypt is not available")
+            return False
     
     def _record_failed_attempt(self, username: str) -> None:
         """Record failed login attempt."""

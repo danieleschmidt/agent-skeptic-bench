@@ -6,8 +6,77 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 from functools import wraps
 
-from prometheus_client import Counter, Histogram, Gauge, Info, start_http_server
-import psutil
+# Handle optional dependencies with graceful fallbacks
+try:
+    from prometheus_client import Counter, Histogram, Gauge, Info, start_http_server
+    prometheus_available = True
+except ImportError:
+    # Fallback stubs for prometheus_client
+    class Counter:
+        def __init__(self, *args, **kwargs): pass
+        def labels(self, **kwargs): return self
+        def inc(self, value=1): pass
+    
+    class Histogram:
+        def __init__(self, *args, **kwargs): pass
+        def labels(self, **kwargs): return self
+        def observe(self, value): pass
+    
+    class Gauge:
+        def __init__(self, *args, **kwargs): pass
+        def labels(self, **kwargs): return self
+        def set(self, value): pass
+        def inc(self, value=1): pass
+    
+    class Info:
+        def __init__(self, *args, **kwargs): pass
+        def info(self, data): pass
+    
+    def start_http_server(port): pass
+    
+    prometheus_available = False
+
+try:
+    import psutil
+    psutil_available = True
+except ImportError:
+    # Fallback stubs for psutil
+    class _MockMemory:
+        def __init__(self):
+            self.percent = 0.0
+            self.used = 0
+    
+    class _MockDisk:
+        def __init__(self):
+            self.used = 0
+            self.total = 1
+    
+    class _MockNetworkIO:
+        def __init__(self):
+            self.bytes_sent = 0
+            self.bytes_recv = 0
+            self.packets_sent = 0
+            self.packets_recv = 0
+    
+    class _MockProcess:
+        def memory_info(self):
+            class MemInfo:
+                rss = 0
+                vms = 0
+            return MemInfo()
+        def num_threads(self): return 1
+        def open_files(self): return []
+    
+    class _MockPsutil:
+        def cpu_percent(self, interval=None): return 0.0
+        def virtual_memory(self): return _MockMemory()
+        def disk_usage(self, path): return _MockDisk()
+        def net_io_counters(self): return _MockNetworkIO()
+        def pids(self): return [1]
+        def Process(self): return _MockProcess()
+    
+    psutil = _MockPsutil()
+    psutil_available = False
 
 
 logger = logging.getLogger(__name__)
@@ -282,6 +351,10 @@ class PrometheusMetrics:
     
     def update_system_metrics(self) -> None:
         """Update system resource metrics."""
+        if not psutil_available:
+            logger.debug("System metrics not available (psutil not installed)")
+            return
+            
         # CPU usage
         cpu_percent = psutil.cpu_percent()
         self.system_cpu_usage.set(cpu_percent)
@@ -305,6 +378,10 @@ class PrometheusMetrics:
     
     def start_server(self) -> None:
         """Start Prometheus metrics server."""
+        if not prometheus_available:
+            logger.warning("Prometheus metrics server not available (prometheus_client not installed)")
+            return
+            
         try:
             start_http_server(self.port)
             logger.info(f"Prometheus metrics server started on port {self.port}")

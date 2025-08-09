@@ -1,7 +1,7 @@
 """Advanced algorithms for Agent Skeptic Bench."""
 
 from .analysis import ScenarioAnalyzer, PatternDetector, TrendAnalyzer
-from .optimization import PerformanceOptimizer, CachingStrategy, QueryOptimizer
+from .optimization import PerformanceOptimizer, CachingStrategy, QueryOptimizer, QuantumInspiredOptimizer, QuantumState, SkepticismCalibrator
 from .ml import MLPredictor, FeatureExtractor, ModelTrainer
 from .scoring import AdvancedScoring, CalibrationEngine, UncertaintyQuantifier
 
@@ -12,6 +12,9 @@ __all__ = [
     "PerformanceOptimizer",
     "CachingStrategy",
     "QueryOptimizer",
+    "QuantumInspiredOptimizer",
+    "QuantumState",
+    "SkepticismCalibrator",
     "MLPredictor",
     "FeatureExtractor",
     "ModelTrainer",
