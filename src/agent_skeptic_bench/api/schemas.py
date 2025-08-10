@@ -1,12 +1,12 @@
 """Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
-from ..models import ScenarioCategory, AgentProvider, EvaluationMetrics
+from ..models import AgentProvider, ScenarioCategory
 
 
 # Base schemas
@@ -23,9 +23,9 @@ class ScenarioBase(BaseModel):
     description: str = Field(..., min_length=1)
     adversary_claim: str = Field(..., min_length=1)
     correct_skepticism_level: float = Field(..., ge=0.0, le=1.0)
-    good_evidence_requests: List[str] = Field(default_factory=list)
-    red_flags: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    good_evidence_requests: list[str] = Field(default_factory=list)
+    red_flags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ScenarioCreate(ScenarioBase):
@@ -36,14 +36,14 @@ class ScenarioCreate(ScenarioBase):
 
 class ScenarioUpdate(BaseModel):
     """Schema for updating scenarios."""
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = Field(None, min_length=1)
-    adversary_claim: Optional[str] = Field(None, min_length=1)
-    category: Optional[ScenarioCategory] = None
-    correct_skepticism_level: Optional[float] = Field(None, ge=0.0, le=1.0)
-    good_evidence_requests: Optional[List[str]] = None
-    red_flags: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = Field(None, min_length=1)
+    adversary_claim: str | None = Field(None, min_length=1)
+    category: ScenarioCategory | None = None
+    correct_skepticism_level: float | None = Field(None, ge=0.0, le=1.0)
+    good_evidence_requests: list[str] | None = None
+    red_flags: list[str] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class ScenarioResponse(ScenarioBase, BaseResponse):
@@ -52,7 +52,7 @@ class ScenarioResponse(ScenarioBase, BaseResponse):
     category: ScenarioCategory
     created_at: datetime
     updated_at: datetime
-    
+
     @classmethod
     def from_record(cls, record):
         """Create from database record."""
@@ -69,7 +69,7 @@ class ScenarioResponse(ScenarioBase, BaseResponse):
             created_at=record.created_at,
             updated_at=record.updated_at
         )
-    
+
     def to_domain_model(self):
         """Convert to domain model."""
         from ..models import Scenario
@@ -105,22 +105,22 @@ class AgentResponse(BaseModel):
     model_name: str
     available: bool
     last_checked: datetime
-    
+
 
 # Evaluation schemas
 class EvaluationRequest(BaseModel):
     """Schema for evaluation requests."""
     scenario_id: str
     agent_config: AgentConfigRequest
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 
 
 class BatchEvaluationRequest(BaseModel):
     """Schema for batch evaluation requests."""
-    scenario_ids: List[str] = Field(..., min_items=1)
+    scenario_ids: list[str] = Field(..., min_items=1)
     agent_config: AgentConfigRequest
     concurrency: int = Field(default=5, ge=1, le=10)
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 
 
 class SkepticResponseSchema(BaseModel):
@@ -129,9 +129,9 @@ class SkepticResponseSchema(BaseModel):
     scenario_id: str
     response_text: str
     confidence_level: float = Field(ge=0.0, le=1.0)
-    evidence_requests: List[str]
-    red_flags_identified: List[str]
-    reasoning_steps: List[str]
+    evidence_requests: list[str]
+    red_flags_identified: list[str]
+    reasoning_steps: list[str]
     response_time_ms: int
     timestamp: datetime
 
@@ -152,11 +152,11 @@ class EvaluationResponse(BaseResponse):
     scenario: ScenarioResponse
     response: SkepticResponseSchema
     metrics: EvaluationMetricsSchema
-    analysis: Dict[str, Any]
+    analysis: dict[str, Any]
     passed_evaluation: bool
-    evaluation_notes: List[str]
+    evaluation_notes: list[str]
     evaluated_at: datetime
-    
+
     @classmethod
     def from_record(cls, record):
         """Create from database record."""
@@ -193,37 +193,37 @@ class EvaluationResponse(BaseResponse):
 class SessionCreate(BaseModel):
     """Schema for creating sessions."""
     name: str = Field(..., min_length=1, max_length=200)
-    description: Optional[str] = None
+    description: str | None = None
     agent_config: AgentConfigRequest
-    scenario_categories: List[ScenarioCategory] = Field(default_factory=list)
+    scenario_categories: list[ScenarioCategory] = Field(default_factory=list)
 
 
 class SessionUpdate(BaseModel):
     """Schema for updating sessions."""
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = None
-    status: Optional[str] = None
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    status: str | None = None
 
 
 class SessionResponse(BaseResponse):
     """Schema for session responses."""
     id: str
     name: str
-    description: Optional[str]
+    description: str | None
     agent_provider: AgentProvider
     agent_model: str
-    scenario_categories: List[ScenarioCategory]
+    scenario_categories: list[ScenarioCategory]
     status: str
     started_at: datetime
-    completed_at: Optional[datetime]
+    completed_at: datetime | None
     total_scenarios: int
     passed_scenarios: int
     pass_rate: float
-    overall_score: Optional[float]
-    
+    overall_score: float | None
+
     @classmethod
     def from_record(cls, record):
-        """Create from database record.""" 
+        """Create from database record."""
         return cls(
             id=record.id,
             name=record.name,
@@ -243,12 +243,12 @@ class SessionResponse(BaseResponse):
 
 class SessionDetailResponse(SessionResponse):
     """Detailed session response with metrics."""
-    avg_skepticism_calibration: Optional[float]
-    avg_evidence_standard_score: Optional[float]
-    avg_red_flag_detection: Optional[float]
-    avg_reasoning_quality: Optional[float]
+    avg_skepticism_calibration: float | None
+    avg_evidence_standard_score: float | None
+    avg_red_flag_detection: float | None
+    avg_reasoning_quality: float | None
     evaluation_count: int = 0
-    
+
     @classmethod
     def from_record(cls, record):
         """Create from database record."""
@@ -266,13 +266,13 @@ class SessionDetailResponse(SessionResponse):
 # Comparison schemas
 class ComparisonRequest(BaseModel):
     """Schema for comparison requests."""
-    session_ids: List[str] = Field(..., min_items=2)
-    category: Optional[ScenarioCategory] = None
+    session_ids: list[str] = Field(..., min_items=2)
+    category: ScenarioCategory | None = None
 
 
 class LeaderboardRequest(BaseModel):
     """Schema for leaderboard requests."""
-    category: Optional[ScenarioCategory] = None
+    category: ScenarioCategory | None = None
     limit: int = Field(default=10, ge=1, le=100)
 
 
@@ -286,14 +286,14 @@ class LeaderboardEntry(BaseModel):
     overall_score: float
     pass_rate: float
     total_scenarios: int
-    completed_at: Optional[datetime]
+    completed_at: datetime | None
 
 
 class LeaderboardResponse(BaseResponse):
     """Schema for leaderboard responses."""
-    category: Optional[str]
+    category: str | None
     total_entries: int
-    leaderboard: List[LeaderboardEntry]
+    leaderboard: list[LeaderboardEntry]
     generated_at: datetime
 
 
@@ -303,13 +303,13 @@ class ErrorResponse(BaseModel):
     error: str
     message: str
     type: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class ValidationErrorResponse(ErrorResponse):
     """Schema for validation error responses."""
     type: str = "validation_error"
-    details: Dict[str, List[str]]
+    details: dict[str, list[str]]
 
 
 # Health check schemas
@@ -318,5 +318,5 @@ class HealthResponse(BaseModel):
     status: str
     timestamp: datetime
     version: str
-    database: Dict[str, Any]
-    cache: Dict[str, Any]
+    database: dict[str, Any]
+    cache: dict[str, Any]

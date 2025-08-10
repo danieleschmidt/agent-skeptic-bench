@@ -2,18 +2,17 @@
 
 import logging
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from ..cache import close_cache, initialize_cache
 from ..database.connection import get_database
-from ..cache import initialize_cache, close_cache
 from .middleware import setup_middleware
 from .routes import register_routes
-
 
 logger = logging.getLogger(__name__)
 
@@ -23,46 +22,46 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     # Startup
     logger.info("Starting Agent Skeptic Bench API...")
-    
+
     try:
         # Initialize database
         db = get_database()
         await db.create_tables()
         logger.info("Database initialized")
-        
+
         # Initialize cache
         await initialize_cache()
         logger.info("Cache initialized")
-        
+
         # Health check
         db_healthy = await db.health_check()
         if not db_healthy:
             logger.warning("Database health check failed")
-        
+
         logger.info("API startup complete")
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize API: {e}")
         raise
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Agent Skeptic Bench API...")
-    
+
     try:
         # Close cache connections
         await close_cache()
         logger.info("Cache connections closed")
-        
+
         # Close database connections
         db = get_database()
         await db.close()
         logger.info("Database connections closed")
-        
+
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
-    
+
     logger.info("API shutdown complete")
 
 
@@ -73,7 +72,7 @@ def create_app(
     debug: bool = False
 ) -> FastAPI:
     """Create and configure FastAPI application."""
-    
+
     app = FastAPI(
         title=title,
         description=description,
@@ -84,7 +83,7 @@ def create_app(
         redoc_url="/redoc" if debug else None,
         openapi_url="/openapi.json" if debug else None
     )
-    
+
     # CORS middleware
     allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
     app.add_middleware(
@@ -94,13 +93,13 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Setup custom middleware
     setup_middleware(app)
-    
+
     # Register routes
     register_routes(app)
-    
+
     # Global exception handler
     @app.exception_handler(Exception)
     async def global_exception_handler(request, exc):
@@ -113,7 +112,7 @@ def create_app(
                 "type": "internal_error"
             }
         )
-    
+
     # Health check endpoint
     @app.get("/health", tags=["Health"])
     async def health_check():
@@ -122,14 +121,14 @@ def create_app(
             # Check database
             db = get_database()
             db_healthy = await db.health_check()
-            
+
             # Check cache
             from ..cache import get_cache_manager
             cache_manager = get_cache_manager()
             cache_status = await cache_manager.health_check()
-            
+
             status = "healthy" if db_healthy else "unhealthy"
-            
+
             return {
                 "status": status,
                 "timestamp": "2025-01-01T00:00:00Z",  # Will be actual timestamp
@@ -139,7 +138,7 @@ def create_app(
                 },
                 "cache": cache_status
             }
-            
+
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return JSONResponse(
@@ -149,7 +148,7 @@ def create_app(
                     "error": str(e)
                 }
             )
-    
+
     logger.info(f"FastAPI application created: {title} v{version}")
     return app
 
@@ -164,7 +163,7 @@ def create_production_app() -> FastAPI:
 
 
 def create_development_app() -> FastAPI:
-    """Create development FastAPI application.""" 
+    """Create development FastAPI application."""
     return create_app(
         debug=True,
         title="Agent Skeptic Bench API (Development)",

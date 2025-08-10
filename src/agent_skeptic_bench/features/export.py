@@ -1,17 +1,15 @@
 """Data export functionality for Agent Skeptic Bench."""
 
-import logging
-import json
 import csv
-from typing import Dict, List, Optional, Any, Union
+import json
+import logging
+from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from abc import ABC, abstractmethod
-import io
+from typing import Any
 
-from ..models import EvaluationResult, BenchmarkSession, Scenario
-
+from ..models import BenchmarkSession, EvaluationResult, Scenario
 
 logger = logging.getLogger(__name__)
 
@@ -19,56 +17,56 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExportConfig:
     """Configuration for data export."""
-    
+
     format: str
     include_metadata: bool = True
     include_raw_responses: bool = False
     date_format: str = "%Y-%m-%d %H:%M:%S"
     flatten_nested: bool = True
-    filter_fields: Optional[List[str]] = None
+    filter_fields: list[str] | None = None
 
 
 @dataclass
 class ExportResult:
     """Result of an export operation."""
-    
+
     success: bool
-    file_path: Optional[Path] = None
+    file_path: Path | None = None
     records_exported: int = 0
-    error_message: Optional[str] = None
+    error_message: str | None = None
     export_time: datetime = None
 
 
 class DataExporter(ABC):
     """Abstract base class for data exporters."""
-    
+
     def __init__(self):
         """Initialize data exporter."""
         pass
-    
+
     @abstractmethod
-    async def export_evaluations(self, results: List[EvaluationResult], 
+    async def export_evaluations(self, results: list[EvaluationResult],
                                output_path: Path, config: ExportConfig) -> ExportResult:
         """Export evaluation results."""
         pass
-    
+
     @abstractmethod
-    async def export_sessions(self, sessions: List[BenchmarkSession], 
+    async def export_sessions(self, sessions: list[BenchmarkSession],
                             output_path: Path, config: ExportConfig) -> ExportResult:
         """Export benchmark sessions."""
         pass
-    
+
     @abstractmethod
-    async def export_scenarios(self, scenarios: List[Scenario], 
+    async def export_scenarios(self, scenarios: list[Scenario],
                              output_path: Path, config: ExportConfig) -> ExportResult:
         """Export scenarios."""
         pass
-    
-    def _prepare_evaluation_data(self, results: List[EvaluationResult], 
-                               config: ExportConfig) -> List[Dict[str, Any]]:
+
+    def _prepare_evaluation_data(self, results: list[EvaluationResult],
+                               config: ExportConfig) -> list[dict[str, Any]]:
         """Prepare evaluation data for export."""
         exported_data = []
-        
+
         for result in results:
             # Convert to dictionary
             data = {
@@ -80,7 +78,7 @@ class DataExporter(ABC):
                 "passed_evaluation": result.passed_evaluation,
                 "evaluation_duration": getattr(result, 'evaluation_duration', None)
             }
-            
+
             # Add metrics
             if config.flatten_nested:
                 data.update({
@@ -92,7 +90,7 @@ class DataExporter(ABC):
                 })
             else:
                 data["metrics"] = asdict(result.metrics)
-            
+
             # Add response data
             if config.include_raw_responses:
                 if config.flatten_nested:
@@ -103,7 +101,7 @@ class DataExporter(ABC):
                         "evidence_requests_count": len(result.response.evidence_requests),
                         "red_flags_identified_count": len(result.response.red_flags_identified)
                     })
-                    
+
                     # Add lists as JSON strings for flat formats
                     data.update({
                         "evidence_requests": json.dumps(result.response.evidence_requests),
@@ -111,7 +109,7 @@ class DataExporter(ABC):
                     })
                 else:
                     data["response"] = asdict(result.response)
-            
+
             # Add scenario data if available
             if hasattr(result, 'scenario') and result.scenario:
                 if config.flatten_nested:
@@ -123,24 +121,24 @@ class DataExporter(ABC):
                     })
                 else:
                     data["scenario"] = asdict(result.scenario)
-            
+
             # Add metadata
             if config.include_metadata:
                 data["export_timestamp"] = datetime.utcnow().strftime(config.date_format)
-            
+
             # Filter fields if specified
             if config.filter_fields:
                 data = {k: v for k, v in data.items() if k in config.filter_fields}
-            
+
             exported_data.append(data)
-        
+
         return exported_data
-    
-    def _prepare_session_data(self, sessions: List[BenchmarkSession], 
-                            config: ExportConfig) -> List[Dict[str, Any]]:
+
+    def _prepare_session_data(self, sessions: list[BenchmarkSession],
+                            config: ExportConfig) -> list[dict[str, Any]]:
         """Prepare session data for export."""
         exported_data = []
-        
+
         for session in sessions:
             data = {
                 "id": session.id,
@@ -154,57 +152,57 @@ class DataExporter(ABC):
                 "overall_score": getattr(session, 'overall_score', None),
                 "pass_rate": getattr(session, 'pass_rate', None)
             }
-            
+
             if config.include_metadata:
                 data.update({
                     "config": json.dumps(session.config) if hasattr(session, 'config') else None,
                     "metadata": json.dumps(session.metadata) if hasattr(session, 'metadata') else None,
                     "export_timestamp": datetime.utcnow().strftime(config.date_format)
                 })
-            
+
             if config.filter_fields:
                 data = {k: v for k, v in data.items() if k in config.filter_fields}
-            
+
             exported_data.append(data)
-        
+
         return exported_data
 
 
 class CSVExporter(DataExporter):
     """Exports data to CSV format."""
-    
-    async def export_evaluations(self, results: List[EvaluationResult], 
+
+    async def export_evaluations(self, results: list[EvaluationResult],
                                output_path: Path, config: ExportConfig) -> ExportResult:
         """Export evaluation results to CSV."""
         try:
             data = self._prepare_evaluation_data(results, config)
-            
+
             if not data:
                 return ExportResult(
                     success=False,
                     error_message="No data to export",
                     export_time=datetime.utcnow()
                 )
-            
+
             # Ensure directory exists
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Write CSV
             with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
                 fieldnames = data[0].keys()
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(data)
-            
+
             logger.info(f"Exported {len(data)} evaluation records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export evaluations to CSV: {e}")
             return ExportResult(
@@ -212,37 +210,37 @@ class CSVExporter(DataExporter):
                 error_message=str(e),
                 export_time=datetime.utcnow()
             )
-    
-    async def export_sessions(self, sessions: List[BenchmarkSession], 
+
+    async def export_sessions(self, sessions: list[BenchmarkSession],
                             output_path: Path, config: ExportConfig) -> ExportResult:
         """Export benchmark sessions to CSV."""
         try:
             data = self._prepare_session_data(sessions, config)
-            
+
             if not data:
                 return ExportResult(
                     success=False,
                     error_message="No data to export",
                     export_time=datetime.utcnow()
                 )
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
                 fieldnames = data[0].keys()
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(data)
-            
+
             logger.info(f"Exported {len(data)} session records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export sessions to CSV: {e}")
             return ExportResult(
@@ -250,8 +248,8 @@ class CSVExporter(DataExporter):
                 error_message=str(e),
                 export_time=datetime.utcnow()
             )
-    
-    async def export_scenarios(self, scenarios: List[Scenario], 
+
+    async def export_scenarios(self, scenarios: list[Scenario],
                              output_path: Path, config: ExportConfig) -> ExportResult:
         """Export scenarios to CSV."""
         try:
@@ -266,36 +264,36 @@ class CSVExporter(DataExporter):
                     "red_flags": json.dumps(scenario.red_flags),
                     "metadata": json.dumps(scenario.metadata)
                 }
-                
+
                 if config.filter_fields:
                     scenario_data = {k: v for k, v in scenario_data.items() if k in config.filter_fields}
-                
+
                 data.append(scenario_data)
-            
+
             if not data:
                 return ExportResult(
                     success=False,
                     error_message="No data to export",
                     export_time=datetime.utcnow()
                 )
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
                 fieldnames = data[0].keys()
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(data)
-            
+
             logger.info(f"Exported {len(data)} scenario records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export scenarios to CSV: {e}")
             return ExportResult(
@@ -307,8 +305,8 @@ class CSVExporter(DataExporter):
 
 class JSONExporter(DataExporter):
     """Exports data to JSON format."""
-    
-    async def export_evaluations(self, results: List[EvaluationResult], 
+
+    async def export_evaluations(self, results: list[EvaluationResult],
                                output_path: Path, config: ExportConfig) -> ExportResult:
         """Export evaluation results to JSON."""
         try:
@@ -321,11 +319,11 @@ class JSONExporter(DataExporter):
                 flatten_nested=False,  # Keep nested for JSON
                 filter_fields=config.filter_fields
             )
-            
+
             data = self._prepare_evaluation_data(results, config_copy)
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             export_data = {
                 "export_info": {
                     "timestamp": datetime.utcnow().isoformat(),
@@ -335,19 +333,19 @@ class JSONExporter(DataExporter):
                 },
                 "evaluations": data
             }
-            
+
             with open(output_path, 'w', encoding='utf-8') as jsonfile:
                 json.dump(export_data, jsonfile, indent=2, ensure_ascii=False)
-            
+
             logger.info(f"Exported {len(data)} evaluation records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export evaluations to JSON: {e}")
             return ExportResult(
@@ -355,8 +353,8 @@ class JSONExporter(DataExporter):
                 error_message=str(e),
                 export_time=datetime.utcnow()
             )
-    
-    async def export_sessions(self, sessions: List[BenchmarkSession], 
+
+    async def export_sessions(self, sessions: list[BenchmarkSession],
                             output_path: Path, config: ExportConfig) -> ExportResult:
         """Export benchmark sessions to JSON."""
         try:
@@ -367,11 +365,11 @@ class JSONExporter(DataExporter):
                 flatten_nested=False,
                 filter_fields=config.filter_fields
             )
-            
+
             data = self._prepare_session_data(sessions, config_copy)
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             export_data = {
                 "export_info": {
                     "timestamp": datetime.utcnow().isoformat(),
@@ -381,19 +379,19 @@ class JSONExporter(DataExporter):
                 },
                 "sessions": data
             }
-            
+
             with open(output_path, 'w', encoding='utf-8') as jsonfile:
                 json.dump(export_data, jsonfile, indent=2, ensure_ascii=False)
-            
+
             logger.info(f"Exported {len(data)} session records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export sessions to JSON: {e}")
             return ExportResult(
@@ -401,22 +399,22 @@ class JSONExporter(DataExporter):
                 error_message=str(e),
                 export_time=datetime.utcnow()
             )
-    
-    async def export_scenarios(self, scenarios: List[Scenario], 
+
+    async def export_scenarios(self, scenarios: list[Scenario],
                              output_path: Path, config: ExportConfig) -> ExportResult:
         """Export scenarios to JSON."""
         try:
             data = [asdict(scenario) for scenario in scenarios]
-            
+
             # Apply field filtering
             if config.filter_fields:
                 data = [
                     {k: v for k, v in scenario_data.items() if k in config.filter_fields}
                     for scenario_data in data
                 ]
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             export_data = {
                 "export_info": {
                     "timestamp": datetime.utcnow().isoformat(),
@@ -426,19 +424,19 @@ class JSONExporter(DataExporter):
                 },
                 "scenarios": data
             }
-            
+
             with open(output_path, 'w', encoding='utf-8') as jsonfile:
                 json.dump(export_data, jsonfile, indent=2, ensure_ascii=False)
-            
+
             logger.info(f"Exported {len(data)} scenario records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export scenarios to JSON: {e}")
             return ExportResult(
@@ -450,8 +448,8 @@ class JSONExporter(DataExporter):
 
 class ExcelExporter(DataExporter):
     """Exports data to Excel format."""
-    
-    async def export_evaluations(self, results: List[EvaluationResult], 
+
+    async def export_evaluations(self, results: list[EvaluationResult],
                                output_path: Path, config: ExportConfig) -> ExportResult:
         """Export evaluation results to Excel."""
         try:
@@ -463,24 +461,24 @@ class ExcelExporter(DataExporter):
                 csv_exporter = CSVExporter()
                 csv_path = output_path.with_suffix('.csv')
                 return await csv_exporter.export_evaluations(results, csv_path, config)
-            
+
             data = self._prepare_evaluation_data(results, config)
-            
+
             if not data:
                 return ExportResult(
                     success=False,
                     error_message="No data to export",
                     export_time=datetime.utcnow()
                 )
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Create DataFrame and export to Excel
             df = pd.DataFrame(data)
-            
+
             with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
                 df.to_excel(writer, sheet_name='Evaluations', index=False)
-                
+
                 # Add a summary sheet
                 summary_data = {
                     'Metric': ['Total Evaluations', 'Passed', 'Failed', 'Pass Rate', 'Average Score'],
@@ -494,16 +492,16 @@ class ExcelExporter(DataExporter):
                 }
                 summary_df = pd.DataFrame(summary_data)
                 summary_df.to_excel(writer, sheet_name='Summary', index=False)
-            
+
             logger.info(f"Exported {len(data)} evaluation records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export evaluations to Excel: {e}")
             return ExportResult(
@@ -511,8 +509,8 @@ class ExcelExporter(DataExporter):
                 error_message=str(e),
                 export_time=datetime.utcnow()
             )
-    
-    async def export_sessions(self, sessions: List[BenchmarkSession], 
+
+    async def export_sessions(self, sessions: list[BenchmarkSession],
                             output_path: Path, config: ExportConfig) -> ExportResult:
         """Export benchmark sessions to Excel."""
         try:
@@ -523,30 +521,30 @@ class ExcelExporter(DataExporter):
                 csv_exporter = CSVExporter()
                 csv_path = output_path.with_suffix('.csv')
                 return await csv_exporter.export_sessions(sessions, csv_path, config)
-            
+
             data = self._prepare_session_data(sessions, config)
-            
+
             if not data:
                 return ExportResult(
                     success=False,
                     error_message="No data to export",
                     export_time=datetime.utcnow()
                 )
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             df = pd.DataFrame(data)
             df.to_excel(output_path, sheet_name='Sessions', index=False)
-            
+
             logger.info(f"Exported {len(data)} session records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export sessions to Excel: {e}")
             return ExportResult(
@@ -554,8 +552,8 @@ class ExcelExporter(DataExporter):
                 error_message=str(e),
                 export_time=datetime.utcnow()
             )
-    
-    async def export_scenarios(self, scenarios: List[Scenario], 
+
+    async def export_scenarios(self, scenarios: list[Scenario],
                              output_path: Path, config: ExportConfig) -> ExportResult:
         """Export scenarios to Excel."""
         try:
@@ -566,7 +564,7 @@ class ExcelExporter(DataExporter):
                 csv_exporter = CSVExporter()
                 csv_path = output_path.with_suffix('.csv')
                 return await csv_exporter.export_scenarios(scenarios, csv_path, config)
-            
+
             data = []
             for scenario in scenarios:
                 scenario_data = {
@@ -579,33 +577,33 @@ class ExcelExporter(DataExporter):
                     "red_flags": "; ".join(scenario.red_flags),
                     "difficulty": scenario.metadata.get('difficulty', 'unknown')
                 }
-                
+
                 if config.filter_fields:
                     scenario_data = {k: v for k, v in scenario_data.items() if k in config.filter_fields}
-                
+
                 data.append(scenario_data)
-            
+
             if not data:
                 return ExportResult(
                     success=False,
                     error_message="No data to export",
                     export_time=datetime.utcnow()
                 )
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             df = pd.DataFrame(data)
             df.to_excel(output_path, sheet_name='Scenarios', index=False)
-            
+
             logger.info(f"Exported {len(data)} scenario records to {output_path}")
-            
+
             return ExportResult(
                 success=True,
                 file_path=output_path,
                 records_exported=len(data),
                 export_time=datetime.utcnow()
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to export scenarios to Excel: {e}")
             return ExportResult(
@@ -619,7 +617,7 @@ class ExcelExporter(DataExporter):
 def create_exporter(format_type: str = "csv") -> DataExporter:
     """Create a data exporter of the specified type."""
     format_type = format_type.lower()
-    
+
     if format_type == "csv":
         return CSVExporter()
     elif format_type == "json":
@@ -631,28 +629,28 @@ def create_exporter(format_type: str = "csv") -> DataExporter:
 
 
 # Convenience function for batch exports
-async def export_evaluation_data(results: List[EvaluationResult], 
-                               output_dir: Path, 
-                               formats: List[str] = ["csv", "json"],
-                               config: Optional[ExportConfig] = None) -> Dict[str, ExportResult]:
+async def export_evaluation_data(results: list[EvaluationResult],
+                               output_dir: Path,
+                               formats: list[str] = ["csv", "json"],
+                               config: ExportConfig | None = None) -> dict[str, ExportResult]:
     """Export evaluation data in multiple formats."""
     if config is None:
         config = ExportConfig(format="multi")
-    
+
     export_results = {}
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     for format_type in formats:
         try:
             exporter = create_exporter(format_type)
             output_path = output_dir / f"evaluations_{timestamp}.{format_type}"
-            
+
             if format_type == "excel":
                 output_path = output_path.with_suffix('.xlsx')
-            
+
             result = await exporter.export_evaluations(results, output_path, config)
             export_results[format_type] = result
-            
+
         except Exception as e:
             logger.error(f"Failed to export in {format_type} format: {e}")
             export_results[format_type] = ExportResult(
@@ -660,5 +658,5 @@ async def export_evaluation_data(results: List[EvaluationResult],
                 error_message=str(e),
                 export_time=datetime.utcnow()
             )
-    
+
     return export_results

@@ -2,34 +2,38 @@
 
 import json
 import logging
-import random
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
-from .models import Scenario, ScenarioCategory, AdversaryAgent, OverconfidentAgent, ManipulativeAgent, GishGallopAgent
 from .data_loader import get_data_loader
-
+from .models import (
+    AdversaryAgent,
+    GishGallopAgent,
+    ManipulativeAgent,
+    OverconfidentAgent,
+    Scenario,
+    ScenarioCategory,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class ScenarioLoader:
     """Loads and manages evaluation scenarios."""
-    
-    def __init__(self, data_path: Optional[Path] = None):
+
+    def __init__(self, data_path: Path | None = None):
         self.data_path = data_path or Path(__file__).parent / "data" / "scenarios"
-        self._scenario_cache: Dict[str, Scenario] = {}
-        self._category_cache: Dict[ScenarioCategory, List[Scenario]] = {}
-        self._adversary_agents: Dict[str, AdversaryAgent] = {
+        self._scenario_cache: dict[str, Scenario] = {}
+        self._category_cache: dict[ScenarioCategory, list[Scenario]] = {}
+        self._adversary_agents: dict[str, AdversaryAgent] = {
             "overconfident": OverconfidentAgent("overconfident"),
             "manipulative": ManipulativeAgent("manipulative"),
             "gish_gallop": GishGallopAgent("gish_gallop"),
         }
-    
-    def load_scenarios(self, categories: Optional[List[ScenarioCategory]] = None) -> List[Scenario]:
+
+    def load_scenarios(self, categories: list[ScenarioCategory] | None = None) -> list[Scenario]:
         """Load scenarios from data files."""
         data_loader = get_data_loader()
-        
+
         if categories is None:
             scenarios = data_loader.get_all_scenarios()
         else:
@@ -37,15 +41,15 @@ class ScenarioLoader:
             for category in categories:
                 category_scenarios = data_loader.get_scenarios_by_category(category)
                 scenarios.extend(category_scenarios)
-        
+
         logger.info(f"Loaded {len(scenarios)} scenarios across {len(categories) if categories else 'all'} categories")
         return scenarios
-    
-    def _load_category_scenarios(self, category: ScenarioCategory) -> List[Scenario]:
+
+    def _load_category_scenarios(self, category: ScenarioCategory) -> list[Scenario]:
         """Load scenarios for a specific category."""
         if category in self._category_cache:
             return self._category_cache[category]
-        
+
         # Try to load from file first
         category_file = self.data_path / f"{category.value}.json"
         if category_file.exists():
@@ -53,16 +57,16 @@ class ScenarioLoader:
         else:
             # Generate default scenarios if file doesn't exist
             scenarios = self._generate_default_scenarios(category)
-        
+
         self._category_cache[category] = scenarios
         return scenarios
-    
-    def _load_from_file(self, file_path: Path, category: ScenarioCategory) -> List[Scenario]:
+
+    def _load_from_file(self, file_path: Path, category: ScenarioCategory) -> list[Scenario]:
         """Load scenarios from JSON file."""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 data = json.load(f)
-            
+
             scenarios = []
             for scenario_data in data.get('scenarios', []):
                 scenario = Scenario(
@@ -78,17 +82,17 @@ class ScenarioLoader:
                 )
                 scenarios.append(scenario)
                 self._scenario_cache[scenario.id] = scenario
-            
+
             return scenarios
-            
+
         except Exception as e:
             logger.error(f"Failed to load scenarios from {file_path}: {e}")
             return self._generate_default_scenarios(category)
-    
-    def _generate_default_scenarios(self, category: ScenarioCategory) -> List[Scenario]:
+
+    def _generate_default_scenarios(self, category: ScenarioCategory) -> list[Scenario]:
         """Generate default scenarios for testing when files are missing."""
         scenarios = []
-        
+
         if category == ScenarioCategory.FACTUAL_CLAIMS:
             scenarios.extend(self._generate_factual_claims_scenarios())
         elif category == ScenarioCategory.FLAWED_PLANS:
@@ -99,14 +103,14 @@ class ScenarioLoader:
             scenarios.extend(self._generate_evidence_scenarios())
         elif category == ScenarioCategory.EPISTEMIC_CALIBRATION:
             scenarios.extend(self._generate_calibration_scenarios())
-        
+
         # Cache the generated scenarios
         for scenario in scenarios:
             self._scenario_cache[scenario.id] = scenario
-        
+
         return scenarios
-    
-    def _generate_factual_claims_scenarios(self) -> List[Scenario]:
+
+    def _generate_factual_claims_scenarios(self) -> list[Scenario]:
         """Generate factual claims scenarios."""
         return [
             Scenario(
@@ -143,8 +147,8 @@ class ScenarioLoader:
                 metadata={"difficulty": "medium", "domain": "technology"}
             )
         ]
-    
-    def _generate_flawed_plans_scenarios(self) -> List[Scenario]:
+
+    def _generate_flawed_plans_scenarios(self) -> list[Scenario]:
         """Generate flawed plans scenarios."""
         return [
             Scenario(
@@ -170,8 +174,8 @@ class ScenarioLoader:
                 metadata={"difficulty": "medium", "domain": "finance"}
             )
         ]
-    
-    def _generate_persuasion_scenarios(self) -> List[Scenario]:
+
+    def _generate_persuasion_scenarios(self) -> list[Scenario]:
         """Generate persuasion attack scenarios."""
         return [
             Scenario(
@@ -197,8 +201,8 @@ class ScenarioLoader:
                 metadata={"difficulty": "easy", "domain": "finance"}
             )
         ]
-    
-    def _generate_evidence_scenarios(self) -> List[Scenario]:
+
+    def _generate_evidence_scenarios(self) -> list[Scenario]:
         """Generate evidence evaluation scenarios."""
         return [
             Scenario(
@@ -213,8 +217,8 @@ class ScenarioLoader:
                 metadata={"difficulty": "medium", "domain": "medical"}
             )
         ]
-    
-    def _generate_calibration_scenarios(self) -> List[Scenario]:
+
+    def _generate_calibration_scenarios(self) -> list[Scenario]:
         """Generate epistemic calibration scenarios."""
         return [
             Scenario(
@@ -229,36 +233,36 @@ class ScenarioLoader:
                 metadata={"difficulty": "easy", "domain": "meteorology"}
             )
         ]
-    
-    def get_scenario(self, scenario_id: str) -> Optional[Scenario]:
+
+    def get_scenario(self, scenario_id: str) -> Scenario | None:
         """Get a specific scenario by ID."""
         data_loader = get_data_loader()
         scenario = data_loader.get_scenario(scenario_id)
         if scenario is None:
             logger.warning(f"Scenario not found: {scenario_id}")
         return scenario
-    
-    def get_random_scenario(self, category: Optional[ScenarioCategory] = None) -> Scenario:
+
+    def get_random_scenario(self, category: ScenarioCategory | None = None) -> Scenario:
         """Get a random scenario, optionally from a specific category."""
         if category:
             scenarios = self._load_category_scenarios(category)
         else:
             scenarios = self.load_scenarios()
-        
+
         if not scenarios:
             raise ValueError("No scenarios available")
-    
-    def load_scenario_from_file(self, file_path: str) -> Optional[Scenario]:
+
+    def load_scenario_from_file(self, file_path: str) -> Scenario | None:
         """Load a single scenario from a JSON file."""
         try:
             file_path_obj = Path(file_path)
             if not file_path_obj.exists():
                 logger.warning(f"Scenario file does not exist: {file_path}")
                 return None
-            
-            with open(file_path_obj, 'r', encoding='utf-8') as f:
+
+            with open(file_path_obj, encoding='utf-8') as f:
                 data = json.load(f)
-            
+
             # Handle both single scenario and scenario list formats
             if isinstance(data, list):
                 scenario_data = data[0] if data else {}
@@ -266,11 +270,11 @@ class ScenarioLoader:
                 scenario_data = data['scenarios'][0] if data['scenarios'] else {}
             else:
                 scenario_data = data
-            
+
             if not scenario_data:
                 logger.warning(f"No scenario data found in file: {file_path}")
                 return None
-            
+
             # Create scenario with proper defaults
             scenario = Scenario(
                 id=scenario_data.get('id', f'file_{file_path_obj.stem}'),
@@ -283,37 +287,37 @@ class ScenarioLoader:
                 red_flags=scenario_data.get('red_flags', []),
                 metadata=scenario_data.get('metadata', {})
             )
-            
+
             logger.info(f"Successfully loaded scenario from file: {file_path}")
             return scenario
-            
+
         except Exception as e:
             logger.error(f"Failed to load scenario from file {file_path}: {e}")
             return None
-    
-    def get_scenarios_by_difficulty(self, difficulty: str) -> List[Scenario]:
+
+    def get_scenarios_by_difficulty(self, difficulty: str) -> list[Scenario]:
         """Get scenarios filtered by difficulty level."""
         all_scenarios = self.load_scenarios()
         return [s for s in all_scenarios if s.metadata.get('difficulty') == difficulty]
-    
+
     def get_adversary_agent(self, agent_type: str) -> AdversaryAgent:
         """Get an adversary agent by type."""
         if agent_type not in self._adversary_agents:
             raise ValueError(f"Unknown adversary agent type: {agent_type}")
         return self._adversary_agents[agent_type]
-    
+
     def add_scenario(self, scenario: Scenario) -> None:
         """Add a custom scenario to the loader."""
         self._scenario_cache[scenario.id] = scenario
         if scenario.category not in self._category_cache:
             self._category_cache[scenario.category] = []
         self._category_cache[scenario.category].append(scenario)
-    
-    def export_scenarios(self, output_path: Path, categories: Optional[List[ScenarioCategory]] = None) -> None:
+
+    def export_scenarios(self, output_path: Path, categories: list[ScenarioCategory] | None = None) -> None:
         """Export scenarios to JSON files."""
         if categories is None:
             categories = list(ScenarioCategory)
-        
+
         for category in categories:
             scenarios = self._load_category_scenarios(category)
             category_data = {
@@ -333,13 +337,13 @@ class ScenarioLoader:
                     for s in scenarios
                 ]
             }
-            
+
             output_file = output_path / f"{category.value}.json"
             output_file.parent.mkdir(parents=True, exist_ok=True)
-            
+
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(category_data, f, indent=2, ensure_ascii=False)
-            
+
             logger.info(f"Exported {len(scenarios)} scenarios to {output_file}")
 
 

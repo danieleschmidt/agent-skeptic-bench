@@ -1,13 +1,13 @@
 """External service integrations for Agent Skeptic Bench."""
 
+from .auth import AuthManager, JWTManager, OAuthHandler
 from .github import GitHubIntegration
-from .notifications import NotificationManager, EmailNotifier, SlackNotifier
-from .auth import AuthManager, OAuthHandler, JWTManager
+from .notifications import EmailNotifier, NotificationManager, SlackNotifier
 
 __all__ = [
     "GitHubIntegration",
     "NotificationManager",
-    "EmailNotifier", 
+    "EmailNotifier",
     "SlackNotifier",
     "AuthManager",
     "OAuthHandler",

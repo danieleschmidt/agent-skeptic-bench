@@ -16,7 +16,7 @@ except ImportError:
         def get_metric(self, name): return None
         def get_all_metrics(self): return {}
         def get_uptime(self): return 0.0
-    
+
     class PrometheusMetrics:
         def __init__(self, port=9090):
             self.port = port
@@ -28,18 +28,18 @@ except ImportError:
         def set_active_sessions(self, count): pass
         def set_db_connections(self, count): pass
         def start_server(self): pass
-    
+
     metrics_available = False
 
 try:
-    from .performance import PerformanceMonitor, PerformanceMetrics
+    from .performance import PerformanceMetrics, PerformanceMonitor
     performance_available = True
 except ImportError:
     # Fallback stubs for missing performance dependencies (psutil)
     from dataclasses import dataclass
     from datetime import datetime
-    from typing import Dict, List, Optional, Any
-    
+    from typing import Any, Dict, List, Optional
+
     @dataclass
     class PerformanceMetrics:
         timestamp: datetime
@@ -53,12 +53,12 @@ except ImportError:
         error_rate: float = 0.0
         active_connections: int = 0
         queue_size: int = 0
-        custom_metrics: Dict[str, float] = None
-        
+        custom_metrics: dict[str, float] = None
+
         def __post_init__(self):
             if self.custom_metrics is None:
                 self.custom_metrics = {}
-    
+
     class PerformanceMonitor:
         def __init__(self, sample_interval=1.0, history_size=1000):
             self.sample_interval = sample_interval
@@ -77,7 +77,7 @@ except ImportError:
         def get_resolved_alerts(self, hours=24): return []
         def get_performance_summary(self): return {"status": "unavailable"}
         def get_performance_trends(self): return {"status": "unavailable"}
-    
+
     performance_available = False
 
 try:
@@ -86,13 +86,13 @@ try:
 except ImportError:
     # Fallback stubs for missing health dependencies (psutil)
     from enum import Enum
-    
+
     class HealthStatus(Enum):
         HEALTHY = "healthy"
         DEGRADED = "degraded"
         UNHEALTHY = "unhealthy"
         CRITICAL = "critical"
-    
+
     class HealthChecker:
         def __init__(self):
             self.health_checks = {}
@@ -103,14 +103,14 @@ except ImportError:
         def get_overall_health(self): return HealthStatus.HEALTHY
         def get_health_summary(self): return {"overall_status": "healthy", "components": {}}
         def setup_default_checks(self): pass
-    
+
     health_available = False
 
 from .alerts import AlertManager, AlertRule
 
 __all__ = [
     "MetricsCollector",
-    "PrometheusMetrics", 
+    "PrometheusMetrics",
     "HealthChecker",
     "HealthStatus",
     "PerformanceMonitor",
@@ -118,6 +118,6 @@ __all__ = [
     "AlertManager",
     "AlertRule",
     "metrics_available",
-    "performance_available", 
+    "performance_available",
     "health_available"
 ]

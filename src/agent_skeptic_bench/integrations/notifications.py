@@ -8,10 +8,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 import httpx
-
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +18,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class NotificationMessage:
     """Represents a notification message."""
-    
+
     title: str
     content: str
     level: str = "info"  # info, warning, error, success
-    metadata: Dict[str, Any] = None
-    
+    metadata: dict[str, Any] = None
+
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
@@ -32,12 +31,12 @@ class NotificationMessage:
 
 class NotificationChannel(ABC):
     """Abstract base class for notification channels."""
-    
+
     @abstractmethod
     async def send(self, message: NotificationMessage) -> bool:
         """Send a notification message."""
         pass
-    
+
     @abstractmethod
     async def is_available(self) -> bool:
         """Check if the notification channel is available."""
@@ -46,14 +45,14 @@ class NotificationChannel(ABC):
 
 class EmailNotifier(NotificationChannel):
     """Email notification channel."""
-    
-    def __init__(self, 
-                 smtp_host: Optional[str] = None,
-                 smtp_port: Optional[int] = None,
-                 smtp_user: Optional[str] = None,
-                 smtp_password: Optional[str] = None,
-                 from_email: Optional[str] = None,
-                 to_emails: Optional[List[str]] = None):
+
+    def __init__(self,
+                 smtp_host: str | None = None,
+                 smtp_port: int | None = None,
+                 smtp_user: str | None = None,
+                 smtp_password: str | None = None,
+                 from_email: str | None = None,
+                 to_emails: list[str] | None = None):
         """Initialize email notifier.
         
         Args:
@@ -70,54 +69,54 @@ class EmailNotifier(NotificationChannel):
         self.smtp_password = smtp_password or os.getenv("SMTP_PASSWORD")
         self.from_email = from_email or os.getenv("EMAIL_FROM", "noreply@skeptic-bench.org")
         self.to_emails = to_emails or self._parse_to_emails()
-        
+
         self.use_tls = os.getenv("SMTP_TLS", "true").lower() == "true"
-    
-    def _parse_to_emails(self) -> List[str]:
+
+    def _parse_to_emails(self) -> list[str]:
         """Parse TO emails from environment variable."""
         to_emails_str = os.getenv("EMAIL_TO", "")
         if to_emails_str:
             return [email.strip() for email in to_emails_str.split(",")]
         return []
-    
+
     async def send(self, message: NotificationMessage) -> bool:
         """Send email notification."""
         if not self.to_emails:
             logger.warning("No email recipients configured")
             return False
-        
+
         try:
             # Create message
             msg = MIMEMultipart()
             msg["From"] = self.from_email
             msg["To"] = ", ".join(self.to_emails)
             msg["Subject"] = f"[Agent Skeptic Bench] {message.title}"
-            
+
             # Create email body
             body = self._create_email_body(message)
             msg.attach(MIMEText(body, "html"))
-            
+
             # Send email
             await asyncio.to_thread(self._send_smtp, msg)
-            
+
             logger.info(f"Email notification sent: {message.title}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to send email notification: {e}")
             return False
-    
+
     def _send_smtp(self, msg: MIMEMultipart) -> None:
         """Send email via SMTP (blocking operation)."""
         with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
             if self.use_tls:
                 server.starttls()
-            
+
             if self.smtp_user and self.smtp_password:
                 server.login(self.smtp_user, self.smtp_password)
-            
+
             server.send_message(msg)
-    
+
     def _create_email_body(self, message: NotificationMessage) -> str:
         """Create HTML email body."""
         # Color scheme based on message level
@@ -127,9 +126,9 @@ class EmailNotifier(NotificationChannel):
             "warning": "#FF9800",
             "error": "#F44336"
         }
-        
+
         color = colors.get(message.level, colors["info"])
-        
+
         body = f"""
         <!DOCTYPE html>
         <html>
@@ -156,13 +155,13 @@ class EmailNotifier(NotificationChannel):
                     <h2>{message.title}</h2>
                     <div>{message.content.replace(chr(10), '<br>')}</div>
         """
-        
+
         if message.metadata:
             body += '<div class="metadata"><h3>Details</h3>'
             for key, value in message.metadata.items():
                 body += f"<p><strong>{key.replace('_', ' ').title()}:</strong> {value}</p>"
             body += '</div>'
-        
+
         body += """
                 </div>
                 <div class="footer">
@@ -173,9 +172,9 @@ class EmailNotifier(NotificationChannel):
         </body>
         </html>
         """
-        
+
         return body
-    
+
     async def is_available(self) -> bool:
         """Check if email notification is available."""
         return bool(self.smtp_host and self.to_emails)
@@ -183,8 +182,8 @@ class EmailNotifier(NotificationChannel):
 
 class SlackNotifier(NotificationChannel):
     """Slack notification channel."""
-    
-    def __init__(self, webhook_url: Optional[str] = None, channel: Optional[str] = None):
+
+    def __init__(self, webhook_url: str | None = None, channel: str | None = None):
         """Initialize Slack notifier.
         
         Args:
@@ -194,40 +193,40 @@ class SlackNotifier(NotificationChannel):
         self.webhook_url = webhook_url or os.getenv("SLACK_WEBHOOK_URL")
         self.channel = channel or os.getenv("SLACK_CHANNEL", "#agent-skeptic-bench")
         self.session = httpx.AsyncClient(timeout=30.0)
-    
+
     async def send(self, message: NotificationMessage) -> bool:
         """Send Slack notification."""
         if not self.webhook_url:
             logger.warning("Slack webhook URL not configured")
             return False
-        
+
         try:
             # Create Slack message payload
             payload = self._create_slack_payload(message)
-            
+
             # Send to Slack
             response = await self.session.post(self.webhook_url, json=payload)
             response.raise_for_status()
-            
+
             logger.info(f"Slack notification sent: {message.title}")
             return True
-            
+
         except httpx.HTTPError as e:
             logger.error(f"Failed to send Slack notification: {e}")
             return False
-    
-    def _create_slack_payload(self, message: NotificationMessage) -> Dict[str, Any]:
+
+    def _create_slack_payload(self, message: NotificationMessage) -> dict[str, Any]:
         """Create Slack message payload."""
         # Color scheme based on message level
         colors = {
             "info": "#2196F3",
             "success": "good",
-            "warning": "warning", 
+            "warning": "warning",
             "error": "danger"
         }
-        
+
         color = colors.get(message.level, colors["info"])
-        
+
         # Create attachment
         attachment = {
             "color": color,
@@ -237,7 +236,7 @@ class SlackNotifier(NotificationChannel):
             "footer_icon": "https://agent-skeptic-bench.org/favicon.ico",
             "ts": int(asyncio.get_event_loop().time())
         }
-        
+
         # Add metadata fields
         if message.metadata:
             fields = []
@@ -248,18 +247,18 @@ class SlackNotifier(NotificationChannel):
                     "short": True
                 })
             attachment["fields"] = fields
-        
+
         return {
             "channel": self.channel,
             "username": "Agent Skeptic Bench",
             "icon_emoji": ":robot_face:",
             "attachments": [attachment]
         }
-    
+
     async def is_available(self) -> bool:
         """Check if Slack notification is available."""
         return bool(self.webhook_url)
-    
+
     async def close(self) -> None:
         """Close HTTP session."""
         await self.session.aclose()
@@ -267,8 +266,8 @@ class SlackNotifier(NotificationChannel):
 
 class WebhookNotifier(NotificationChannel):
     """Generic webhook notification channel."""
-    
-    def __init__(self, webhook_url: str, headers: Optional[Dict[str, str]] = None):
+
+    def __init__(self, webhook_url: str, headers: dict[str, str] | None = None):
         """Initialize webhook notifier.
         
         Args:
@@ -278,7 +277,7 @@ class WebhookNotifier(NotificationChannel):
         self.webhook_url = webhook_url
         self.headers = headers or {}
         self.session = httpx.AsyncClient(timeout=30.0)
-    
+
     async def send(self, message: NotificationMessage) -> bool:
         """Send webhook notification."""
         try:
@@ -290,21 +289,21 @@ class WebhookNotifier(NotificationChannel):
                 "timestamp": asyncio.get_event_loop().time(),
                 "source": "agent-skeptic-bench"
             }
-            
+
             response = await self.session.post(
                 self.webhook_url,
                 json=payload,
                 headers=self.headers
             )
             response.raise_for_status()
-            
+
             logger.info(f"Webhook notification sent: {message.title}")
             return True
-            
+
         except httpx.HTTPError as e:
             logger.error(f"Failed to send webhook notification: {e}")
             return False
-    
+
     async def is_available(self) -> bool:
         """Check if webhook notification is available."""
         try:
@@ -312,7 +311,7 @@ class WebhookNotifier(NotificationChannel):
             return response.status_code < 500
         except:
             return False
-    
+
     async def close(self) -> None:
         """Close HTTP session."""
         await self.session.aclose()
@@ -320,22 +319,22 @@ class WebhookNotifier(NotificationChannel):
 
 class NotificationManager:
     """Manages multiple notification channels."""
-    
+
     def __init__(self):
         """Initialize notification manager."""
-        self.channels: List[NotificationChannel] = []
+        self.channels: list[NotificationChannel] = []
         self._setup_default_channels()
-    
+
     def _setup_default_channels(self) -> None:
         """Setup default notification channels based on environment."""
         # Email notifications
         if os.getenv("SMTP_HOST") and os.getenv("EMAIL_TO"):
             self.channels.append(EmailNotifier())
-        
+
         # Slack notifications
         if os.getenv("SLACK_WEBHOOK_URL"):
             self.channels.append(SlackNotifier())
-        
+
         # Custom webhook
         webhook_url = os.getenv("NOTIFICATION_WEBHOOK_URL")
         if webhook_url:
@@ -344,11 +343,11 @@ class NotificationManager:
             if auth_header:
                 headers["Authorization"] = auth_header
             self.channels.append(WebhookNotifier(webhook_url, headers))
-    
+
     def add_channel(self, channel: NotificationChannel) -> None:
         """Add a notification channel."""
         self.channels.append(channel)
-    
+
     async def send(self, message: NotificationMessage) -> int:
         """Send notification to all available channels.
         
@@ -358,27 +357,27 @@ class NotificationManager:
         if not self.channels:
             logger.warning("No notification channels configured")
             return 0
-        
+
         tasks = []
         for channel in self.channels:
             if await channel.is_available():
                 tasks.append(channel.send(message))
-        
+
         if not tasks:
             logger.warning("No available notification channels")
             return 0
-        
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         successful = sum(1 for result in results if result is True)
         failed = len(results) - successful
-        
+
         if failed > 0:
             logger.warning(f"Failed to send notification to {failed} channels")
-        
+
         return successful
-    
-    async def send_evaluation_complete(self, session_id: str, results: Dict[str, Any]) -> None:
+
+    async def send_evaluation_complete(self, session_id: str, results: dict[str, Any]) -> None:
         """Send evaluation completion notification."""
         message = NotificationMessage(
             title=f"Evaluation Complete: {session_id}",
@@ -392,9 +391,9 @@ class NotificationManager:
                 "agent_model": results.get('agent_model', 'Unknown')
             }
         )
-        
+
         await self.send(message)
-    
+
     async def send_evaluation_failed(self, session_id: str, error_message: str) -> None:
         """Send evaluation failure notification."""
         message = NotificationMessage(
@@ -406,10 +405,10 @@ class NotificationManager:
                 "error": error_message
             }
         )
-        
+
         await self.send(message)
-    
-    async def send_system_alert(self, alert_type: str, description: str, 
+
+    async def send_system_alert(self, alert_type: str, description: str,
                                severity: str = "warning") -> None:
         """Send system alert notification."""
         message = NotificationMessage(
@@ -421,9 +420,9 @@ class NotificationManager:
                 "severity": severity
             }
         )
-        
+
         await self.send(message)
-    
+
     async def close(self) -> None:
         """Close all notification channels."""
         for channel in self.channels:
@@ -432,14 +431,14 @@ class NotificationManager:
 
 
 # Global notification manager instance
-_notification_manager: Optional[NotificationManager] = None
+_notification_manager: NotificationManager | None = None
 
 
 def get_notification_manager() -> NotificationManager:
     """Get global notification manager instance."""
     global _notification_manager
-    
+
     if _notification_manager is None:
         _notification_manager = NotificationManager()
-    
+
     return _notification_manager
