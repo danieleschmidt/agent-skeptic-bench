@@ -4,45 +4,42 @@ import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
+from .agents import BaseSkepticAgent, create_skeptic_agent
 from .benchmark import SkepticBenchmark
-from .agents import create_skeptic_agent, BaseSkepticAgent
 from .models import (
     AgentConfig,
-    AgentProvider,
     BenchmarkSession,
     EvaluationResult,
-    ScenarioCategory
+    ScenarioCategory,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
 class EvaluationReport:
     """Generates detailed evaluation reports."""
-    
+
     def __init__(self, session: BenchmarkSession):
         self.session = session
         self.results = session.results
-    
+
     def summary(self) -> str:
         """Generate text summary of evaluation results."""
         if not self.results:
             return "No evaluation results available."
-        
+
         summary_lines = [
-            f"Agent Skeptic Bench Evaluation Report",
-            f"=" * 40,
+            "Agent Skeptic Bench Evaluation Report",
+            "=" * 40,
             f"Session: {self.session.name}",
             f"Agent: {self.session.agent_config.model_name} ({self.session.agent_config.provider.value})",
             f"Evaluated: {self.session.total_scenarios} scenarios",
             f"Pass Rate: {self.session.pass_rate:.1%}",
-            f"",
-            f"Overall Metrics:",
+            "",
+            "Overall Metrics:",
         ]
-        
+
         if self.session.summary_metrics:
             metrics = self.session.summary_metrics
             summary_lines.extend([
@@ -51,9 +48,9 @@ class EvaluationReport:
                 f"  Red Flag Detection: {metrics.red_flag_detection:.3f}",
                 f"  Reasoning Quality: {metrics.reasoning_quality:.3f}",
                 f"  Overall Score: {metrics.overall_score:.3f}",
-                f""
+                ""
             ])
-        
+
         # Category breakdown
         category_stats = self._get_category_stats()
         if category_stats:
@@ -64,10 +61,10 @@ class EvaluationReport:
                     f"{stats['pass_rate']:.1%} pass rate, "
                     f"{stats['avg_score']:.3f} avg score"
                 )
-        
+
         return "\n".join(summary_lines)
-    
-    def detailed_analysis(self) -> Dict:
+
+    def detailed_analysis(self) -> dict:
         """Generate detailed analysis of results."""
         analysis = {
             "session_info": {
@@ -85,7 +82,7 @@ class EvaluationReport:
             "top_performing_scenarios": [],
             "worst_performing_scenarios": []
         }
-        
+
         if self.session.summary_metrics:
             analysis["overall_metrics"] = {
                 "skepticism_calibration": self.session.summary_metrics.skepticism_calibration,
@@ -95,13 +92,13 @@ class EvaluationReport:
                 "overall_score": self.session.summary_metrics.overall_score,
                 "pass_rate": self.session.pass_rate
             }
-        
+
         # Category analysis
         analysis["category_analysis"] = self._get_detailed_category_analysis()
-        
+
         # Failure analysis
         analysis["failure_analysis"] = self._get_failure_analysis()
-        
+
         # Top and worst performing scenarios
         sorted_results = sorted(self.results, key=lambda x: x.metrics.overall_score, reverse=True)
         analysis["top_performing_scenarios"] = [
@@ -124,22 +121,22 @@ class EvaluationReport:
             }
             for r in sorted_results[-5:]
         ]
-        
+
         return analysis
-    
-    def save_html(self, output_path: Union[str, Path]) -> None:
+
+    def save_html(self, output_path: str | Path) -> None:
         """Save report as HTML file."""
         html_content = self._generate_html_report()
-        
+
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
-        
+
         logger.info(f"HTML report saved to {output_path}")
-    
-    def _get_category_stats(self) -> Dict:
+
+    def _get_category_stats(self) -> dict:
         """Get statistics by category."""
         category_results = {}
         for result in self.results:
@@ -147,7 +144,7 @@ class EvaluationReport:
             if category not in category_results:
                 category_results[category] = []
             category_results[category].append(result)
-        
+
         category_stats = {}
         for category, results in category_results.items():
             passed = sum(1 for r in results if r.passed_evaluation)
@@ -157,33 +154,33 @@ class EvaluationReport:
                 "pass_rate": passed / len(results) if results else 0,
                 "avg_score": total_score / len(results) if results else 0
             }
-        
+
         return category_stats
-    
-    def _get_detailed_category_analysis(self) -> Dict:
+
+    def _get_detailed_category_analysis(self) -> dict:
         """Get detailed analysis by category."""
         category_analysis = {}
         category_results = {}
-        
+
         # Group results by category
         for result in self.results:
             category = result.scenario.category.value
             if category not in category_results:
                 category_results[category] = []
             category_results[category].append(result)
-        
+
         # Analyze each category
         for category, results in category_results.items():
             if not results:
                 continue
-                
+
             # Calculate average metrics
             avg_skepticism = sum(r.metrics.skepticism_calibration for r in results) / len(results)
             avg_evidence = sum(r.metrics.evidence_standard_score for r in results) / len(results)
             avg_red_flags = sum(r.metrics.red_flag_detection for r in results) / len(results)
             avg_reasoning = sum(r.metrics.reasoning_quality for r in results) / len(results)
             avg_overall = sum(r.metrics.overall_score for r in results) / len(results)
-            
+
             category_analysis[category] = {
                 "total_scenarios": len(results),
                 "passed_scenarios": sum(1 for r in results if r.passed_evaluation),
@@ -197,18 +194,18 @@ class EvaluationReport:
                 },
                 "common_issues": self._identify_common_issues(results)
             }
-        
+
         return category_analysis
-    
-    def _get_failure_analysis(self) -> Dict:
+
+    def _get_failure_analysis(self) -> dict:
         """Analyze common failure patterns."""
         failed_results = [r for r in self.results if not r.passed_evaluation]
-        
+
         if not failed_results:
             return {"total_failures": 0, "failure_patterns": []}
-        
+
         failure_patterns = []
-        
+
         # Low skepticism calibration
         low_skepticism = [r for r in failed_results if r.metrics.skepticism_calibration < 0.3]
         if low_skepticism:
@@ -217,7 +214,7 @@ class EvaluationReport:
                 "count": len(low_skepticism),
                 "description": "Agent failed to apply appropriate skepticism to implausible claims"
             })
-        
+
         # Poor evidence standards
         poor_evidence = [r for r in failed_results if r.metrics.evidence_standard_score < 0.3]
         if poor_evidence:
@@ -226,7 +223,7 @@ class EvaluationReport:
                 "count": len(poor_evidence),
                 "description": "Agent failed to request appropriate quality of evidence"
             })
-        
+
         # Missed red flags
         missed_flags = [r for r in failed_results if r.metrics.red_flag_detection < 0.3]
         if missed_flags:
@@ -235,35 +232,35 @@ class EvaluationReport:
                 "count": len(missed_flags),
                 "description": "Agent failed to identify logical fallacies and warning signs"
             })
-        
+
         return {
             "total_failures": len(failed_results),
             "failure_rate": len(failed_results) / len(self.results),
             "failure_patterns": failure_patterns
         }
-    
-    def _identify_common_issues(self, results: List[EvaluationResult]) -> List[str]:
+
+    def _identify_common_issues(self, results: list[EvaluationResult]) -> list[str]:
         """Identify common issues in a set of results."""
         issues = []
-        
+
         # Check for consistently low metrics
         avg_skepticism = sum(r.metrics.skepticism_calibration for r in results) / len(results)
         avg_evidence = sum(r.metrics.evidence_standard_score for r in results) / len(results)
         avg_red_flags = sum(r.metrics.red_flag_detection for r in results) / len(results)
-        
+
         if avg_skepticism < 0.5:
             issues.append("Consistently low skepticism calibration")
         if avg_evidence < 0.5:
             issues.append("Inadequate evidence standards")
         if avg_red_flags < 0.5:
             issues.append("Poor red flag detection")
-        
+
         return issues
-    
+
     def _generate_html_report(self) -> str:
         """Generate HTML report content."""
         analysis = self.detailed_analysis()
-        
+
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -291,7 +288,7 @@ class EvaluationReport:
                 <p><strong>Completed:</strong> {analysis['session_info']['completed_at'] or 'In Progress'}</p>
             </div>
         """
-        
+
         if analysis['overall_metrics']:
             metrics = analysis['overall_metrics']
             html += f"""
@@ -323,7 +320,7 @@ class EvaluationReport:
                 </div>
             </div>
             """
-        
+
         # Add category analysis
         if analysis['category_analysis']:
             html += "<h2>Category Performance</h2>"
@@ -335,19 +332,19 @@ class EvaluationReport:
                     <p>Average Score: {stats['metrics']['overall_score']:.3f}</p>
                 </div>
                 """
-        
+
         html += "</body></html>"
         return html
 
 
 async def run_full_evaluation(
-    skeptic_agent: Union[BaseSkepticAgent, str],
-    categories: Optional[List[Union[str, ScenarioCategory]]] = None,
-    limit: Optional[int] = None,
+    skeptic_agent: BaseSkepticAgent | str,
+    categories: list[str | ScenarioCategory] | None = None,
+    limit: int | None = None,
     parallel: bool = True,
     concurrency: int = 5,
-    save_results: Optional[Union[str, Path]] = None,
-    session_name: Optional[str] = None,
+    save_results: str | Path | None = None,
+    session_name: str | None = None,
     **agent_kwargs
 ) -> EvaluationReport:
     """Run a full evaluation of a skeptic agent.
@@ -366,7 +363,7 @@ async def run_full_evaluation(
         EvaluationReport with detailed results
     """
     benchmark = SkepticBenchmark()
-    
+
     # Handle agent creation
     if isinstance(skeptic_agent, str):
         if 'api_key' not in agent_kwargs:
@@ -381,7 +378,7 @@ async def run_full_evaluation(
     else:
         agent = skeptic_agent
         agent_config = agent.config
-    
+
     # Process categories
     if categories:
         processed_categories = []
@@ -393,7 +390,7 @@ async def run_full_evaluation(
         categories = processed_categories
     else:
         categories = None
-    
+
     # Create session
     session_name = session_name or f"Evaluation_{agent_config.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     session = benchmark.create_session(
@@ -401,7 +398,7 @@ async def run_full_evaluation(
         agent_config=agent_config,
         description=f"Full evaluation of {agent_config.model_name}"
     )
-    
+
     # Run evaluation
     concurrency_level = concurrency if parallel else 1
     completed_session = await benchmark.run_session(
@@ -410,13 +407,13 @@ async def run_full_evaluation(
         limit=limit,
         concurrency=concurrency_level
     )
-    
+
     # Save results if requested
     if save_results:
         import json
         save_path = Path(save_results)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Export session data
         session_data = {
             "session_id": completed_session.id,
@@ -452,12 +449,12 @@ async def run_full_evaluation(
                 for r in completed_session.results
             ]
         }
-        
+
         with open(save_path, 'w', encoding='utf-8') as f:
             json.dump(session_data, f, indent=2, ensure_ascii=False)
-        
+
         logger.info(f"Results saved to {save_path}")
-    
+
     # Generate and return report
     report = EvaluationReport(completed_session)
     logger.info(f"Evaluation completed: {completed_session.pass_rate:.1%} pass rate")
@@ -465,11 +462,11 @@ async def run_full_evaluation(
 
 
 def compare_agents(
-    agent_configs: List[Dict],
-    categories: Optional[List[ScenarioCategory]] = None,
-    limit: Optional[int] = None,
+    agent_configs: list[dict],
+    categories: list[ScenarioCategory] | None = None,
+    limit: int | None = None,
     concurrency: int = 3
-) -> Dict:
+) -> dict:
     """Compare multiple agents on the same scenarios.
     
     Args:
@@ -483,17 +480,17 @@ def compare_agents(
     """
     async def run_comparison():
         benchmark = SkepticBenchmark()
-        
+
         # Get scenarios once for all agents
         scenarios = benchmark.get_scenarios(categories, limit)
-        
+
         comparison_results = {
             "scenarios_evaluated": len(scenarios),
             "categories": list(set(s.category.value for s in scenarios)),
             "agents": [],
             "scenario_results": {}
         }
-        
+
         # Evaluate each agent
         for config in agent_configs:
             agent = create_skeptic_agent(**config)
@@ -503,18 +500,18 @@ def compare_agents(
                 api_key=config['api_key'],
                 **{k: v for k, v in config.items() if k not in ['model', 'api_key']}
             )
-            
+
             session = benchmark.create_session(
                 name=f"Comparison_{agent_config.model_name}",
                 agent_config=agent_config
             )
-            
+
             # Evaluate with fixed scenarios
             results = await benchmark.evaluate_batch(agent, scenarios, concurrency)
-            
+
             for result in results:
                 session.add_result(result)
-            
+
             agent_summary = {
                 "model": agent_config.model_name,
                 "provider": agent_config.provider.value,
@@ -522,7 +519,7 @@ def compare_agents(
                 "pass_rate": sum(1 for r in results if r.passed_evaluation) / len(results),
                 "overall_score": session.summary_metrics.overall_score if session.summary_metrics else 0.0
             }
-            
+
             if session.summary_metrics:
                 agent_summary["metrics"] = {
                     "skepticism_calibration": session.summary_metrics.skepticism_calibration,
@@ -530,9 +527,9 @@ def compare_agents(
                     "red_flag_detection": session.summary_metrics.red_flag_detection,
                     "reasoning_quality": session.summary_metrics.reasoning_quality
                 }
-            
+
             comparison_results["agents"].append(agent_summary)
-            
+
             # Store per-scenario results
             for result in results:
                 scenario_id = result.scenario.id
@@ -542,13 +539,13 @@ def compare_agents(
                         "category": result.scenario.category.value,
                         "agent_results": {}
                     }
-                
+
                 comparison_results["scenario_results"][scenario_id]["agent_results"][agent_config.model_name] = {
                     "passed": result.passed_evaluation,
                     "overall_score": result.metrics.overall_score,
                     "confidence": result.response.confidence_level
                 }
-        
+
         return comparison_results
-    
+
     return asyncio.run(run_comparison())

@@ -1,16 +1,14 @@
 """Report generation functionality for Agent Skeptic Bench."""
 
 import logging
-import json
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
-from pathlib import Path
-from dataclasses import dataclass, asdict
 from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from ..models import EvaluationResult, BenchmarkSession
-from ..algorithms.analysis import ScenarioAnalyzer, PatternDetector, TrendAnalyzer
-
+from ..algorithms.analysis import PatternDetector, ScenarioAnalyzer, TrendAnalyzer
+from ..models import EvaluationResult
 
 logger = logging.getLogger(__name__)
 
@@ -18,85 +16,85 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ReportConfig:
     """Configuration for report generation."""
-    
+
     title: str
     description: str
     include_charts: bool = True
     include_raw_data: bool = False
-    date_range: Optional[tuple[datetime, datetime]] = None
-    agent_providers: Optional[List[str]] = None
-    models: Optional[List[str]] = None
-    template: Optional[str] = None
+    date_range: tuple[datetime, datetime] | None = None
+    agent_providers: list[str] | None = None
+    models: list[str] | None = None
+    template: str | None = None
 
 
 @dataclass
 class ReportSection:
     """A section within a report."""
-    
+
     title: str
     content: str
-    charts: List[Dict[str, Any]]
-    tables: List[Dict[str, Any]]
-    metadata: Dict[str, Any]
+    charts: list[dict[str, Any]]
+    tables: list[dict[str, Any]]
+    metadata: dict[str, Any]
 
 
 @dataclass
 class Report:
     """Complete generated report."""
-    
+
     id: str
     title: str
     description: str
     generated_at: datetime
     config: ReportConfig
-    sections: List[ReportSection]
-    summary: Dict[str, Any]
-    metadata: Dict[str, Any]
+    sections: list[ReportSection]
+    summary: dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class ReportGenerator(ABC):
     """Abstract base class for report generators."""
-    
+
     def __init__(self):
         """Initialize report generator."""
         self.analyzer = ScenarioAnalyzer()
         self.pattern_detector = PatternDetector()
         self.trend_analyzer = TrendAnalyzer()
-    
+
     @abstractmethod
-    async def generate(self, results: List[EvaluationResult], 
+    async def generate(self, results: list[EvaluationResult],
                       config: ReportConfig) -> Report:
         """Generate a report from evaluation results."""
         pass
-    
+
     @abstractmethod
     async def export(self, report: Report, output_path: Path) -> None:
         """Export report to file."""
         pass
-    
-    def _generate_summary_section(self, results: List[EvaluationResult]) -> ReportSection:
+
+    def _generate_summary_section(self, results: list[EvaluationResult]) -> ReportSection:
         """Generate executive summary section."""
         total_evaluations = len(results)
         passed_evaluations = sum(1 for r in results if r.passed_evaluation)
         pass_rate = passed_evaluations / total_evaluations if total_evaluations > 0 else 0
-        
+
         # Calculate average scores
         avg_overall = sum(r.metrics.overall_score for r in results) / total_evaluations if total_evaluations > 0 else 0
         avg_skepticism = sum(r.metrics.skepticism_calibration for r in results) / total_evaluations if total_evaluations > 0 else 0
         avg_evidence = sum(r.metrics.evidence_standard_score for r in results) / total_evaluations if total_evaluations > 0 else 0
         avg_red_flags = sum(r.metrics.red_flag_detection for r in results) / total_evaluations if total_evaluations > 0 else 0
-        
+
         # Provider breakdown
         providers = {}
         for result in results:
             if result.agent_provider not in providers:
                 providers[result.agent_provider] = {'count': 0, 'avg_score': 0}
             providers[result.agent_provider]['count'] += 1
-        
+
         for provider in providers:
             provider_results = [r for r in results if r.agent_provider == provider]
             providers[provider]['avg_score'] = sum(r.metrics.overall_score for r in provider_results) / len(provider_results)
-        
+
         content = f"""
         ## Executive Summary
         
@@ -111,10 +109,10 @@ class ReportGenerator(ABC):
         
         ### Provider Performance
         """
-        
+
         for provider, stats in providers.items():
             content += f"- **{provider}**: {stats['count']} evaluations, avg score {stats['avg_score']:.3f}\n"
-        
+
         return ReportSection(
             title="Executive Summary",
             content=content,
@@ -157,15 +155,15 @@ class ReportGenerator(ABC):
                 "providers": list(providers.keys())
             }
         )
-    
-    async def _generate_analysis_section(self, results: List[EvaluationResult]) -> ReportSection:
+
+    async def _generate_analysis_section(self, results: list[EvaluationResult]) -> ReportSection:
         """Generate detailed analysis section."""
         # Perform various analyses
         difficulty_analysis = self.analyzer.analyze_difficulty_distribution(results)
         category_analysis = self.analyzer.analyze_category_performance(results)
         patterns = self.pattern_detector.detect_response_patterns(results)
         trends = self.trend_analyzer.analyze_metric_trends(results, time_window_days=30)
-        
+
         content = f"""
         ## Detailed Analysis
         
@@ -177,20 +175,20 @@ class ReportGenerator(ABC):
         
         ### Detected Patterns
         """
-        
+
         if patterns:
             for pattern in patterns:
                 content += f"- **{pattern.pattern_type}**: {pattern.description} (strength: {pattern.strength:.2f})\n"
         else:
             content += "- No significant patterns detected\n"
-        
+
         content += "\n### Performance Trends\n"
         if trends:
             for trend in trends:
                 content += f"- **{trend.metric_name}**: {trend.direction} trend (R² = {trend.r_squared:.3f})\n"
         else:
             content += "- No significant trends detected\n"
-        
+
         return ReportSection(
             title="Detailed Analysis",
             content=content,
@@ -222,50 +220,50 @@ class ReportGenerator(ABC):
                 "trends": [asdict(t) for t in trends]
             }
         )
-    
-    def _generate_recommendations_section(self, results: List[EvaluationResult]) -> ReportSection:
+
+    def _generate_recommendations_section(self, results: list[EvaluationResult]) -> ReportSection:
         """Generate recommendations section."""
         # Analyze results to generate recommendations
         recommendations = []
-        
+
         # Check overall pass rate
         pass_rate = sum(1 for r in results if r.passed_evaluation) / len(results) if results else 0
         if pass_rate < 0.7:
             recommendations.append("Overall pass rate is below 70%. Consider reviewing evaluation criteria or providing additional training.")
-        
+
         # Check for performance gaps between providers
         providers = {}
         for result in results:
             if result.agent_provider not in providers:
                 providers[result.agent_provider] = []
             providers[result.agent_provider].append(result.metrics.overall_score)
-        
+
         if len(providers) > 1:
             avg_scores = {p: sum(scores)/len(scores) for p, scores in providers.items()}
             max_score = max(avg_scores.values())
             min_score = min(avg_scores.values())
-            
+
             if max_score - min_score > 0.2:
                 best_provider = max(avg_scores, key=avg_scores.get)
                 worst_provider = min(avg_scores, key=avg_scores.get)
                 recommendations.append(f"Significant performance gap between {best_provider} ({avg_scores[best_provider]:.3f}) and {worst_provider} ({avg_scores[worst_provider]:.3f}). Consider investigating configuration differences.")
-        
+
         # Check for low scores in specific metrics
         avg_skepticism = sum(r.metrics.skepticism_calibration for r in results) / len(results) if results else 0
         if avg_skepticism < 0.6:
             recommendations.append("Skepticism calibration scores are low. Consider scenarios that better test appropriate skepticism levels.")
-        
+
         avg_red_flags = sum(r.metrics.red_flag_detection for r in results) / len(results) if results else 0
         if avg_red_flags < 0.6:
             recommendations.append("Red flag detection performance is low. Review scenarios for clear and identifiable warning signs.")
-        
+
         content = "## Recommendations\n\n"
         if recommendations:
             for i, rec in enumerate(recommendations, 1):
                 content += f"{i}. {rec}\n\n"
         else:
             content += "No specific recommendations at this time. Overall performance appears satisfactory.\n"
-        
+
         return ReportSection(
             title="Recommendations",
             content=content,
@@ -290,19 +288,19 @@ class ReportGenerator(ABC):
 
 class HTMLReportGenerator(ReportGenerator):
     """Generates HTML reports."""
-    
-    async def generate(self, results: List[EvaluationResult], 
+
+    async def generate(self, results: list[EvaluationResult],
                       config: ReportConfig) -> Report:
         """Generate HTML report."""
         report_id = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        
+
         # Generate sections
         sections = [
             self._generate_summary_section(results),
             await self._generate_analysis_section(results),
             self._generate_recommendations_section(results)
         ]
-        
+
         # Generate overall summary
         summary = {
             "total_evaluations": len(results),
@@ -313,7 +311,7 @@ class HTMLReportGenerator(ReportGenerator):
                 "end": max(r.evaluated_at for r in results) if results else None
             }
         }
-        
+
         return Report(
             id=report_id,
             title=config.title,
@@ -327,17 +325,17 @@ class HTMLReportGenerator(ReportGenerator):
                 "generator_version": "1.0.0"
             }
         )
-    
+
     async def export(self, report: Report, output_path: Path) -> None:
         """Export report as HTML file."""
         html_content = self._generate_html(report)
-        
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
-        
+
         logger.info(f"HTML report exported to {output_path}")
-    
+
     def _generate_html(self, report: Report) -> str:
         """Generate HTML content for the report."""
         html = f"""
@@ -371,12 +369,12 @@ class HTMLReportGenerator(ReportGenerator):
         <p><strong>Average Score:</strong> {report.summary.get('avg_score', 0):.3f}</p>
     </div>
 """
-        
+
         # Add sections
         for section in report.sections:
             html += f'<div class="section"><h2>{section.title}</h2>\n'
             html += f'<div>{section.content}</div>\n'
-            
+
             # Add tables
             for table in section.tables:
                 html += f'<h3>{table["title"]}</h3>\n<table>\n'
@@ -384,13 +382,13 @@ class HTMLReportGenerator(ReportGenerator):
                 for row in table["rows"]:
                     html += '<tr>' + ''.join(f'<td>{cell}</td>' for cell in row) + '</tr>\n'
                 html += '</table>\n'
-            
+
             # Add chart placeholders
             for chart in section.charts:
                 html += f'<div class="chart-placeholder"><strong>Chart: {chart["title"]}</strong><br>Chart data would be rendered here with a charting library</div>\n'
-            
+
             html += '</div>\n'
-        
+
         html += """
 </body>
 </html>
@@ -400,8 +398,8 @@ class HTMLReportGenerator(ReportGenerator):
 
 class PDFReportGenerator(ReportGenerator):
     """Generates PDF reports."""
-    
-    async def generate(self, results: List[EvaluationResult], 
+
+    async def generate(self, results: list[EvaluationResult],
                       config: ReportConfig) -> Report:
         """Generate PDF report."""
         # Use similar logic to HTML generator but prepare for PDF output
@@ -409,12 +407,12 @@ class PDFReportGenerator(ReportGenerator):
         report = await html_generator.generate(results, config)
         report.metadata["format"] = "pdf"
         return report
-    
+
     async def export(self, report: Report, output_path: Path) -> None:
         """Export report as PDF file."""
         # In a real implementation, this would use a library like weasyprint or reportlab
         # For now, we'll create a simple text version
-        
+
         content = f"""
 {report.title}
 {'=' * len(report.title)}
@@ -428,21 +426,21 @@ Summary:
 - Average Score: {report.summary.get('avg_score', 0):.3f}
 
 """
-        
+
         for section in report.sections:
             content += f"\n{section.title}\n{'-' * len(section.title)}\n"
             content += section.content + "\n"
-            
+
             for table in section.tables:
                 content += f"\n{table['title']}:\n"
                 # Simple table formatting
                 for row in table["rows"]:
                     content += " | ".join(str(cell) for cell in row) + "\n"
-        
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path.with_suffix('.txt'), 'w', encoding='utf-8') as f:
             f.write(content)
-        
+
         logger.info(f"PDF report (as text) exported to {output_path.with_suffix('.txt')}")
         logger.warning("PDF generation requires additional dependencies (weasyprint/reportlab)")
 

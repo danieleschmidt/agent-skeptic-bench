@@ -6,13 +6,12 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import List, Optional
 
+from .algorithms.optimization import SkepticismCalibrator
 from .benchmark import SkepticBenchmark
-from .evaluation import run_full_evaluation, compare_agents
-from .models import ScenarioCategory, AgentProvider
+from .evaluation import compare_agents, run_full_evaluation
+from .models import ScenarioCategory
 from .scenarios import create_default_scenario_data
-from .algorithms.optimization import QuantumInspiredOptimizer, SkepticismCalibrator
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -27,7 +26,7 @@ def setup_logging(verbose: bool = False) -> None:
     )
 
 
-def parse_categories(category_strings: List[str]) -> List[ScenarioCategory]:
+def parse_categories(category_strings: list[str]) -> list[ScenarioCategory]:
     """Parse category strings into ScenarioCategory enum values."""
     categories = []
     for cat_str in category_strings:
@@ -41,12 +40,12 @@ def parse_categories(category_strings: List[str]) -> List[ScenarioCategory]:
 async def cmd_evaluate(args) -> None:
     """Run evaluation command."""
     print(f"Starting evaluation with model: {args.model}")
-    
+
     # Validate required arguments
     if not args.api_key:
         print("Error: API key required. Use --api-key or set environment variable.")
         sys.exit(1)
-    
+
     # Parse categories
     categories = None
     if args.categories:
@@ -54,7 +53,7 @@ async def cmd_evaluate(args) -> None:
         if not categories:
             print("Error: No valid categories specified.")
             sys.exit(1)
-    
+
     # Determine provider
     provider = args.provider
     if not provider:
@@ -67,7 +66,7 @@ async def cmd_evaluate(args) -> None:
         else:
             print("Error: Cannot auto-detect provider. Please specify --provider.")
             sys.exit(1)
-    
+
     try:
         # Run evaluation
         report = await run_full_evaluation(
@@ -83,17 +82,17 @@ async def cmd_evaluate(args) -> None:
             temperature=args.temperature,
             max_tokens=args.max_tokens
         )
-        
+
         # Print summary
         print("\n" + "="*50)
         print(report.summary())
         print("="*50)
-        
+
         # Save HTML report if requested
         if args.html_report:
             report.save_html(args.html_report)
             print(f"HTML report saved to: {args.html_report}")
-        
+
     except Exception as e:
         print(f"Evaluation failed: {e}")
         if args.verbose:
@@ -105,27 +104,27 @@ async def cmd_evaluate(args) -> None:
 async def cmd_compare(args) -> None:
     """Run comparison command."""
     print("Starting model comparison...")
-    
+
     # Load configurations from files
     agent_configs = []
     for config_file in args.configs:
         try:
-            with open(config_file, 'r') as f:
+            with open(config_file) as f:
                 config = json.load(f)
                 agent_configs.append(config)
         except Exception as e:
             print(f"Error loading config {config_file}: {e}")
             sys.exit(1)
-    
+
     if len(agent_configs) < 2:
         print("Error: At least 2 agent configurations required for comparison.")
         sys.exit(1)
-    
+
     # Parse categories
     categories = None
     if args.categories:
         categories = parse_categories(args.categories)
-    
+
     try:
         # Run comparison
         results = await compare_agents(
@@ -134,7 +133,7 @@ async def cmd_compare(args) -> None:
             limit=args.limit,
             concurrency=args.concurrency
         )
-        
+
         # Print results
         print("\n" + "="*50)
         print("AGENT COMPARISON RESULTS")
@@ -142,25 +141,25 @@ async def cmd_compare(args) -> None:
         print(f"Scenarios evaluated: {results['scenarios_evaluated']}")
         print(f"Categories: {', '.join(results['categories'])}")
         print()
-        
+
         # Sort agents by overall score
         agents = sorted(results['agents'], key=lambda x: x['overall_score'], reverse=True)
-        
+
         print("LEADERBOARD:")
         print("-" * 70)
         print(f"{'Rank':<4} {'Model':<20} {'Provider':<10} {'Score':<8} {'Pass Rate':<10}")
         print("-" * 70)
-        
+
         for i, agent in enumerate(agents, 1):
             print(f"{i:<4} {agent['model']:<20} {agent['provider']:<10} "
                   f"{agent['overall_score']:<8.3f} {agent['pass_rate']:<10.1%}")
-        
+
         # Save detailed results
         if args.output:
             with open(args.output, 'w') as f:
                 json.dump(results, f, indent=2)
             print(f"\nDetailed results saved to: {args.output}")
-        
+
     except Exception as e:
         print(f"Comparison failed: {e}")
         if args.verbose:
@@ -172,17 +171,17 @@ async def cmd_compare(args) -> None:
 def cmd_list_scenarios(args) -> None:
     """List available scenarios."""
     benchmark = SkepticBenchmark()
-    
+
     # Get scenarios
     categories = None
     if args.categories:
         categories = parse_categories(args.categories)
-    
+
     scenarios = benchmark.get_scenarios(categories, args.limit)
-    
+
     print(f"Found {len(scenarios)} scenarios")
     print("-" * 50)
-    
+
     # Group by category
     by_category = {}
     for scenario in scenarios:
@@ -190,7 +189,7 @@ def cmd_list_scenarios(args) -> None:
         if cat not in by_category:
             by_category[cat] = []
         by_category[cat].append(scenario)
-    
+
     for category, cat_scenarios in by_category.items():
         print(f"\n{category.upper()} ({len(cat_scenarios)} scenarios):")
         for scenario in cat_scenarios:
@@ -205,7 +204,7 @@ def cmd_generate_data(args) -> None:
     """Generate default scenario data files."""
     output_path = Path(args.output)
     print(f"Generating scenario data files in: {output_path}")
-    
+
     try:
         create_default_scenario_data(output_path)
         print("Scenario data files generated successfully!")
@@ -217,24 +216,24 @@ def cmd_generate_data(args) -> None:
 def cmd_validate_config(args) -> None:
     """Validate agent configuration file."""
     try:
-        with open(args.config, 'r') as f:
+        with open(args.config) as f:
             config = json.load(f)
-        
+
         required_fields = ['model', 'api_key']
         missing_fields = [field for field in required_fields if field not in config]
-        
+
         if missing_fields:
             print(f"Invalid configuration: Missing fields {missing_fields}")
             sys.exit(1)
-        
+
         # Try to create agent
         from .agents import create_skeptic_agent
         agent = create_skeptic_agent(**config)
-        
+
         print("Configuration is valid!")
         print(f"Provider: {agent.provider.value}")
         print(f"Model: {agent.model_name}")
-        
+
     except Exception as e:
         print(f"Configuration validation failed: {e}")
         sys.exit(1)
@@ -243,26 +242,26 @@ def cmd_validate_config(args) -> None:
 async def cmd_optimize(args) -> None:
     """Run quantum optimization command."""
     print("Starting quantum-inspired skepticism optimization...")
-    
+
     if not args.evaluation_data:
         print("Error: Evaluation data file required for optimization.")
         sys.exit(1)
-    
+
     # Load evaluation data
     try:
-        with open(args.evaluation_data, 'r') as f:
+        with open(args.evaluation_data) as f:
             evaluation_data = json.load(f)
     except Exception as e:
         print(f"Error loading evaluation data: {e}")
         sys.exit(1)
-    
+
     # Initialize quantum optimizer
     calibrator = SkepticismCalibrator()
-    
+
     # Mock evaluation data structure for demonstration
     # In practice, this would be loaded from actual evaluation results
     mock_evaluations = []
-    
+
     try:
         # Run quantum optimization
         print("Initializing quantum population...")
@@ -270,26 +269,26 @@ async def cmd_optimize(args) -> None:
             historical_evaluations=mock_evaluations,
             target_metrics=args.target_metrics
         )
-        
+
         # Generate report
         report = calibrator.get_calibration_report()
-        
+
         print("\n" + "="*50)
         print("QUANTUM OPTIMIZATION RESULTS")
         print("="*50)
-        print(f"Optimal Parameters:")
+        print("Optimal Parameters:")
         for param, value in optimal_params.items():
             print(f"  {param}: {value:.4f}")
-        
-        print(f"\nOptimization Performance:")
+
+        print("\nOptimization Performance:")
         perf = report.get("optimization_performance", {})
         print(f"  Final Fitness: {perf.get('average_final_fitness', 0):.4f}")
         print(f"  Stability: {perf.get('optimization_stability', 0):.4f}")
-        
-        print(f"\nRecommendations:")
+
+        print("\nRecommendations:")
         for rec in report.get("recommendations", []):
             print(f"  • {rec}")
-        
+
         # Save results
         if args.output:
             with open(args.output, 'w') as f:
@@ -298,7 +297,7 @@ async def cmd_optimize(args) -> None:
                     "calibration_report": report
                 }, f, indent=2)
             print(f"\nResults saved to: {args.output}")
-    
+
     except Exception as e:
         print(f"Optimization failed: {e}")
         if args.verbose:
@@ -312,23 +311,23 @@ def cmd_predict_skepticism(args) -> None:
     if not args.scenario_file:
         print("Error: Scenario file required.")
         sys.exit(1)
-    
+
     if not args.parameters:
         print("Error: Agent parameters file required.")
         sys.exit(1)
-    
+
     try:
         # Load scenario
-        with open(args.scenario_file, 'r') as f:
+        with open(args.scenario_file) as f:
             scenario_data = json.load(f)
-        
+
         # Load parameters
-        with open(args.parameters, 'r') as f:
+        with open(args.parameters) as f:
             parameters = json.load(f)
-        
+
         # Initialize calibrator
         calibrator = SkepticismCalibrator()
-        
+
         # Mock scenario object for demonstration
         from .models import Scenario, ScenarioCategory
         scenario = Scenario(
@@ -339,17 +338,17 @@ def cmd_predict_skepticism(args) -> None:
             correct_skepticism_level=scenario_data.get("correct_skepticism_level", 0.5),
             metadata=scenario_data.get("metadata", {})
         )
-        
+
         # Predict optimal skepticism
         predicted_skepticism = calibrator.predict_optimal_skepticism(scenario, parameters)
-        
+
         print(f"Scenario: {scenario.title}")
         print(f"Predicted Optimal Skepticism: {predicted_skepticism:.4f}")
         print(f"Target Skepticism: {scenario.correct_skepticism_level:.4f}")
-        
+
         accuracy = 1.0 - abs(predicted_skepticism - scenario.correct_skepticism_level)
         print(f"Prediction Accuracy: {accuracy:.4f}")
-        
+
     except Exception as e:
         print(f"Prediction failed: {e}")
         if args.verbose:
@@ -383,12 +382,12 @@ Examples:
   agent-skeptic-bench list-scenarios --categories factual_claims
         """
     )
-    
+
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Enable verbose logging')
-    
+
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
-    
+
     # Evaluate command
     eval_parser = subparsers.add_parser('evaluate', help='Evaluate a single agent')
     eval_parser.add_argument('--model', required=True,
@@ -417,7 +416,7 @@ Examples:
                             help='Output file for HTML report')
     eval_parser.add_argument('--session-name',
                             help='Name for evaluation session')
-    
+
     # Compare command
     compare_parser = subparsers.add_parser('compare', help='Compare multiple agents')
     compare_parser.add_argument('--configs', nargs='+', required=True,
@@ -431,7 +430,7 @@ Examples:
                                help='Concurrent evaluations per agent (default: 3)')
     compare_parser.add_argument('--output', '-o',
                                help='Output file for comparison results (JSON)')
-    
+
     # List scenarios command
     list_parser = subparsers.add_parser('list-scenarios', help='List available scenarios')
     list_parser.add_argument('--categories', nargs='+',
@@ -439,17 +438,17 @@ Examples:
                             help='Categories to list')
     list_parser.add_argument('--limit', type=int,
                             help='Limit number of scenarios to show')
-    
+
     # Generate data command
     gen_parser = subparsers.add_parser('generate-data', help='Generate default scenario data')
     gen_parser.add_argument('--output', '-o', default='./data/scenarios',
                            help='Output directory for scenario data (default: ./data/scenarios)')
-    
+
     # Validate config command
     validate_parser = subparsers.add_parser('validate-config', help='Validate agent configuration')
     validate_parser.add_argument('--config', required=True,
                                 help='Configuration file to validate')
-    
+
     # Quantum optimization command
     optimize_parser = subparsers.add_parser('quantum-optimize', help='Run quantum-inspired optimization')
     optimize_parser.add_argument('--evaluation-data', required=True,
@@ -458,14 +457,14 @@ Examples:
                                 help='Target metrics for optimization')
     optimize_parser.add_argument('--output', '-o',
                                 help='Output file for optimization results')
-    
+
     # Skepticism prediction command
     predict_parser = subparsers.add_parser('predict-skepticism', help='Predict optimal skepticism level')
     predict_parser.add_argument('--scenario-file', required=True,
                                help='Scenario data file (JSON)')
     predict_parser.add_argument('--parameters', required=True,
                                help='Agent parameters file (JSON)')
-    
+
     return parser
 
 
@@ -473,13 +472,13 @@ def main() -> None:
     """Main CLI entry point."""
     parser = create_parser()
     args = parser.parse_args()
-    
+
     if not args.command:
         parser.print_help()
         sys.exit(1)
-    
+
     setup_logging(args.verbose)
-    
+
     try:
         if args.command == 'evaluate':
             asyncio.run(cmd_evaluate(args))

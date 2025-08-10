@@ -3,37 +3,35 @@
 import asyncio
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+import google.generativeai as genai
 import openai
 from anthropic import Anthropic
-import google.generativeai as genai
 
 from .models import (
-    AgentConfig, 
-    AgentProvider, 
-    Scenario, 
+    AgentConfig,
+    AgentProvider,
+    Scenario,
     SkepticResponse,
-    SkepticismLevel
 )
-
 
 logger = logging.getLogger(__name__)
 
 
 class BaseSkepticAgent:
     """Base class for skeptical AI agents."""
-    
+
     def __init__(self, config: AgentConfig):
         self.config = config
         self.provider = config.provider
         self.model_name = config.model_name
-    
-    async def evaluate_claim(self, scenario: Scenario, context: Optional[Dict[str, Any]] = None) -> SkepticResponse:
+
+    async def evaluate_claim(self, scenario: Scenario, context: dict[str, Any] | None = None) -> SkepticResponse:
         """Evaluate an adversarial claim with appropriate skepticism."""
         raise NotImplementedError("Subclasses must implement evaluate_claim")
-    
-    def _build_prompt(self, scenario: Scenario, context: Optional[Dict[str, Any]] = None) -> str:
+
+    def _build_prompt(self, scenario: Scenario, context: dict[str, Any] | None = None) -> str:
         """Build evaluation prompt for the agent."""
         base_prompt = f"""
 You are a skeptical AI agent tasked with evaluating claims and arguments. Your goal is to:
@@ -58,22 +56,22 @@ Respond with:
 4. Red flags you identified
 5. Your reasoning steps
 """
-        
+
         if context:
             base_prompt += f"\nAdditional Context: {context}"
-        
+
         return base_prompt
-    
+
     def _parse_response(self, response_text: str, scenario: Scenario, response_time_ms: int) -> SkepticResponse:
         """Parse agent response into structured format."""
         # Simple parsing - in production would use more sophisticated NLP
         lines = response_text.strip().split('\n')
-        
+
         confidence_level = 0.5  # default
         evidence_requests = []
         red_flags = []
         reasoning_steps = []
-        
+
         for line in lines:
             line = line.strip()
             if 'confidence' in line.lower():
@@ -93,7 +91,7 @@ Respond with:
                 red_flags.append(line)
             elif any(word in line.lower() for word in ['because', 'reason', 'therefore', 'thus']):
                 reasoning_steps.append(line)
-        
+
         return SkepticResponse(
             agent_id=f"{self.provider}_{self.model_name}",
             scenario_id=scenario.id,
@@ -108,19 +106,19 @@ Respond with:
 
 class OpenAISkepticAgent(BaseSkepticAgent):
     """Skeptical agent using OpenAI models."""
-    
+
     def __init__(self, config: AgentConfig):
         super().__init__(config)
         self.client = openai.OpenAI(
             api_key=config.api_key,
             base_url=config.base_url
         )
-    
-    async def evaluate_claim(self, scenario: Scenario, context: Optional[Dict[str, Any]] = None) -> SkepticResponse:
+
+    async def evaluate_claim(self, scenario: Scenario, context: dict[str, Any] | None = None) -> SkepticResponse:
         """Evaluate claim using OpenAI model."""
         prompt = self._build_prompt(scenario, context)
         start_time = time.time()
-        
+
         try:
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
@@ -133,12 +131,12 @@ class OpenAISkepticAgent(BaseSkepticAgent):
                 max_tokens=self.config.max_tokens,
                 timeout=self.config.timeout
             )
-            
+
             response_time_ms = int((time.time() - start_time) * 1000)
             response_text = response.choices[0].message.content
-            
+
             return self._parse_response(response_text, scenario, response_time_ms)
-            
+
         except Exception as e:
             logger.error(f"OpenAI evaluation failed: {e}")
             response_time_ms = int((time.time() - start_time) * 1000)
@@ -153,16 +151,16 @@ class OpenAISkepticAgent(BaseSkepticAgent):
 
 class AnthropicSkepticAgent(BaseSkepticAgent):
     """Skeptical agent using Anthropic Claude models."""
-    
+
     def __init__(self, config: AgentConfig):
         super().__init__(config)
         self.client = Anthropic(api_key=config.api_key)
-    
-    async def evaluate_claim(self, scenario: Scenario, context: Optional[Dict[str, Any]] = None) -> SkepticResponse:
+
+    async def evaluate_claim(self, scenario: Scenario, context: dict[str, Any] | None = None) -> SkepticResponse:
         """Evaluate claim using Anthropic model."""
         prompt = self._build_prompt(scenario, context)
         start_time = time.time()
-        
+
         try:
             response = await asyncio.to_thread(
                 self.client.messages.create,
@@ -173,12 +171,12 @@ class AnthropicSkepticAgent(BaseSkepticAgent):
                     {"role": "user", "content": prompt}
                 ]
             )
-            
+
             response_time_ms = int((time.time() - start_time) * 1000)
             response_text = response.content[0].text
-            
+
             return self._parse_response(response_text, scenario, response_time_ms)
-            
+
         except Exception as e:
             logger.error(f"Anthropic evaluation failed: {e}")
             response_time_ms = int((time.time() - start_time) * 1000)
@@ -193,17 +191,17 @@ class AnthropicSkepticAgent(BaseSkepticAgent):
 
 class GoogleSkepticAgent(BaseSkepticAgent):
     """Skeptical agent using Google Generative AI models."""
-    
+
     def __init__(self, config: AgentConfig):
         super().__init__(config)
         genai.configure(api_key=config.api_key)
         self.model = genai.GenerativeModel(config.model_name)
-    
-    async def evaluate_claim(self, scenario: Scenario, context: Optional[Dict[str, Any]] = None) -> SkepticResponse:
+
+    async def evaluate_claim(self, scenario: Scenario, context: dict[str, Any] | None = None) -> SkepticResponse:
         """Evaluate claim using Google model."""
         prompt = self._build_prompt(scenario, context)
         start_time = time.time()
-        
+
         try:
             response = await asyncio.to_thread(
                 self.model.generate_content,
@@ -213,12 +211,12 @@ class GoogleSkepticAgent(BaseSkepticAgent):
                     max_output_tokens=self.config.max_tokens,
                 )
             )
-            
+
             response_time_ms = int((time.time() - start_time) * 1000)
             response_text = response.text
-            
+
             return self._parse_response(response_text, scenario, response_time_ms)
-            
+
         except Exception as e:
             logger.error(f"Google evaluation failed: {e}")
             response_time_ms = int((time.time() - start_time) * 1000)
@@ -233,17 +231,17 @@ class GoogleSkepticAgent(BaseSkepticAgent):
 
 class AgentFactory:
     """Factory for creating skeptical AI agents."""
-    
+
     def __init__(self):
-        self._agent_cache: Dict[str, BaseSkepticAgent] = {}
-    
+        self._agent_cache: dict[str, BaseSkepticAgent] = {}
+
     def create_agent(self, config: AgentConfig) -> BaseSkepticAgent:
         """Create a skeptical agent based on configuration."""
         cache_key = f"{config.provider}_{config.model_name}_{hash(config.api_key)}"
-        
+
         if cache_key in self._agent_cache:
             return self._agent_cache[cache_key]
-        
+
         if config.provider == AgentProvider.OPENAI:
             agent = OpenAISkepticAgent(config)
         elif config.provider == AgentProvider.ANTHROPIC:
@@ -252,14 +250,14 @@ class AgentFactory:
             agent = GoogleSkepticAgent(config)
         else:
             raise ValueError(f"Unsupported agent provider: {config.provider}")
-        
+
         self._agent_cache[cache_key] = agent
         return agent
-    
-    def get_supported_providers(self) -> List[AgentProvider]:
+
+    def get_supported_providers(self) -> list[AgentProvider]:
         """Get list of supported agent providers."""
         return [AgentProvider.OPENAI, AgentProvider.ANTHROPIC, AgentProvider.GOOGLE]
-    
+
     def clear_cache(self) -> None:
         """Clear the agent cache."""
         self._agent_cache.clear()
@@ -268,7 +266,7 @@ class AgentFactory:
 def create_skeptic_agent(
     model: str,
     api_key: str,
-    provider: Optional[str] = None,
+    provider: str | None = None,
     skepticism_level: str = "calibrated",
     evidence_standards: str = "scientific",
     **kwargs
@@ -298,7 +296,7 @@ def create_skeptic_agent(
             raise ValueError(f"Cannot auto-detect provider for model: {model}")
     else:
         provider = AgentProvider(provider.lower())
-    
+
     # Adjust temperature based on skepticism level
     temperature_map = {
         "low": 0.3,
@@ -306,7 +304,7 @@ def create_skeptic_agent(
         "high": 0.7
     }
     temperature = kwargs.get('temperature', temperature_map.get(skepticism_level, 0.5))
-    
+
     config = AgentConfig(
         provider=provider,
         model_name=model,
@@ -314,6 +312,6 @@ def create_skeptic_agent(
         temperature=temperature,
         **{k: v for k, v in kwargs.items() if k != 'temperature'}
     )
-    
+
     factory = AgentFactory()
     return factory.create_agent(config)
