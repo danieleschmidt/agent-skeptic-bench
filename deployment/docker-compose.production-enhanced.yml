@@ -1,0 +1,355 @@
+# Enhanced Production Docker Compose for Agent Skeptic Bench
+# Includes all production services with monitoring, security, and scaling
+
+version: '3.8'
+
+services:
+  # Main Application with Quantum Enhancement
+  agent-skeptic-bench:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      args:
+        ENVIRONMENT: production
+    image: agent-skeptic-bench:latest
+    container_name: agent-skeptic-bench-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # API
+      - "9090:9090"  # Metrics
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - QUANTUM_OPTIMIZATION=true
+      - AUTO_SCALING=true
+      - SECURITY_ENHANCED=true
+      - DATABASE_URL=postgresql://agent_user:secure_password_123@postgres:5432/agent_skeptic_bench
+      - CACHE_URL=redis://redis:6379/0
+      - PROMETHEUS_PORT=9090
+      - GRAFANA_URL=http://grafana:3000
+    volumes:
+      - ./config:/app/config:ro
+      - app_data:/app/data
+      - app_logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - prometheus
+    networks:
+      - agent-skeptic-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  # Load Balancer (Nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: agent-skeptic-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - agent-skeptic-bench
+    networks:
+      - agent-skeptic-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Database with Optimization
+  postgres:
+    image: postgres:13-alpine
+    container_name: agent-skeptic-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=agent_skeptic_bench
+      - POSTGRES_USER=agent_user
+      - POSTGRES_PASSWORD=secure_password_123
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    networks:
+      - agent-skeptic-network
+    ports:
+      - "5432:5432"  # For external access if needed
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_user -d agent_skeptic_bench"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Redis Cache with Persistence
+  redis:
+    image: redis:6-alpine
+    container_name: agent-skeptic-redis
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - agent-skeptic-network
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agent-skeptic-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--storage.tsdb.retention.time=30d'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - agent-skeptic-network
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agent-skeptic-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin_password_123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - agent-skeptic-network
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Alertmanager for Alert Handling
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: agent-skeptic-alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - agent-skeptic-network
+    ports:
+      - "9093:9093"
+    depends_on:
+      - prometheus
+
+  # Jaeger for Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: agent-skeptic-jaeger
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
+    networks:
+      - agent-skeptic-network
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+      - "6831:6831/udp"  # Jaeger agent
+      - "6832:6832/udp"  # Jaeger agent
+
+  # Elasticsearch for Log Storage
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.0
+    container_name: agent-skeptic-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - agent-skeptic-network
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # Kibana for Log Visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.15.0
+    container_name: agent-skeptic-kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - agent-skeptic-network
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Filebeat for Log Shipping
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.15.0
+    container_name: agent-skeptic-filebeat
+    restart: unless-stopped
+    user: root
+    volumes:
+      - ./monitoring/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - app_logs:/var/log/app:ro
+      - nginx_logs:/var/log/nginx:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - agent-skeptic-network
+    depends_on:
+      - elasticsearch
+
+  # Security Scanner (Trivy)
+  security-scanner:
+    image: aquasec/trivy:latest
+    container_name: agent-skeptic-security
+    restart: "no"  # Run on-demand
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - trivy_cache:/root/.cache/trivy
+    networks:
+      - agent-skeptic-network
+    command: >
+      sh -c 'trivy image --exit-code 1 --severity HIGH,CRITICAL agent-skeptic-bench:latest || 
+             (echo "Security vulnerabilities detected!" && exit 1)'
+
+  # Backup Service
+  backup:
+    image: postgres:13-alpine
+    container_name: agent-skeptic-backup
+    restart: "no"  # Run on schedule
+    environment:
+      - PGPASSWORD=secure_password_123
+    volumes:
+      - backup_data:/backup
+      - ./scripts/backup.sh:/backup.sh:ro
+    networks:
+      - agent-skeptic-network
+    depends_on:
+      - postgres
+    command: sh /backup.sh
+
+# Named Volumes for Data Persistence
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_data:
+    driver: local
+  app_logs:
+    driver: local
+  nginx_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  elasticsearch_data:
+    driver: local
+  backup_data:
+    driver: local
+  trivy_cache:
+    driver: local
+
+# Networks
+networks:
+  agent-skeptic-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
