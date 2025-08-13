@@ -1,83 +1,88 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: agent-skeptic-bench
-  labels:
-    name: agent-skeptic-bench
-    environment: production
-
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: agent-skeptic-config
-  namespace: agent-skeptic-bench
-data:
-  ENVIRONMENT: "production"
-  LOG_LEVEL: "info"
-  QUANTUM_OPTIMIZATION_ENABLED: "true"
-  AUTO_SCALING_ENABLED: "true"
-  CACHE_BACKEND: "redis"
-  CACHE_TTL: "3600"
-  SECURITY_VALIDATION_ENABLED: "true"
-  RATE_LIMIT_REQUESTS_PER_MINUTE: "1000"
-  PROMETHEUS_METRICS_ENABLED: "true"
-  JAEGER_TRACING_ENABLED: "true"
-
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: agent-skeptic-secrets
-  namespace: agent-skeptic-bench
-type: Opaque
-data:
-  POSTGRES_PASSWORD: c2VjdXJlX3Bhc3N3b3JkXzEyMw==  # base64: secure_password_123
-  REDIS_PASSWORD: cmVkaXNfc2VjdXJlXzQ1Ng==      # base64: redis_secure_456
-  JWT_SECRET_KEY: and0X3NlY3JldF9rZXlfNzg5       # base64: jwt_secret_key_789
-
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: agent-skeptic-bench-api
-  namespace: agent-skeptic-bench
+  name: agent-skeptic-bench
+  namespace: production
   labels:
-    app: agent-skeptic-bench-api
+    app: agent-skeptic-bench
     version: v1.0.0
+    environment: production
 spec:
   replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   selector:
     matchLabels:
-      app: agent-skeptic-bench-api
+      app: agent-skeptic-bench
   template:
     metadata:
       labels:
-        app: agent-skeptic-bench-api
+        app: agent-skeptic-bench
         version: v1.0.0
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: agent-skeptic-bench
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
-      - name: api
+      - name: agent-skeptic-bench
         image: agent-skeptic-bench:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
           name: http
-        envFrom:
-        - configMapRef:
-            name: agent-skeptic-config
-        - secretRef:
-            name: agent-skeptic-secrets
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: agent-skeptic-bench-secrets
+              key: redis-url
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: agent-skeptic-bench-secrets
+              key: postgres-url
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agent-skeptic-bench-secrets
+              key: openai-api-key
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agent-skeptic-bench-secrets
+              key: anthropic-api-key
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: data
+          mountPath: /app/data
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+        - name: cache
+          mountPath: /app/cache
         resources:
           requests:
-            memory: "1Gi"
-            cpu: "500m"
+            cpu: 500m
+            memory: 1Gi
           limits:
-            memory: "2Gi"
-            cpu: "1000m"
+            cpu: 2
+            memory: 4Gi
         livenessProbe:
           httpGet:
             path: /health
@@ -94,80 +99,71 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
-        volumeMounts:
-        - name: data-volume
-          mountPath: /app/data
-          readOnly: true
-        - name: logs-volume
-          mountPath: /app/logs
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
       volumes:
-      - name: data-volume
+      - name: config
+        configMap:
+          name: agent-skeptic-bench-config
+      - name: data
         persistentVolumeClaim:
-          claimName: agent-skeptic-data-pvc
-      - name: logs-volume
+          claimName: agent-skeptic-bench-data
+      - name: logs
         persistentVolumeClaim:
-          claimName: agent-skeptic-logs-pvc
-
+          claimName: agent-skeptic-bench-logs
+      - name: cache
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - agent-skeptic-bench
+              topologyKey: kubernetes.io/hostname
 ---
 apiVersion: v1
-kind: Service
+kind: ServiceAccount
 metadata:
-  name: agent-skeptic-bench-service
-  namespace: agent-skeptic-bench
-  labels:
-    app: agent-skeptic-bench-api
-spec:
-  type: ClusterIP
-  ports:
-  - port: 80
-    targetPort: 8000
-    protocol: TCP
-    name: http
-  selector:
-    app: agent-skeptic-bench-api
-
+  name: agent-skeptic-bench
+  namespace: production
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: policy/v1
+kind: PodDisruptionBudget
 metadata:
-  name: agent-skeptic-bench-ingress
-  namespace: agent-skeptic-bench
-  annotations:
-    kubernetes.io/ingress.class: "nginx"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/rate-limit: "1000"
-    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+  name: agent-skeptic-bench-pdb
+  namespace: production
 spec:
-  tls:
-  - hosts:
-    - api.agent-skeptic-bench.com
-    secretName: agent-skeptic-bench-tls
-  rules:
-  - host: api.agent-skeptic-bench.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: agent-skeptic-bench-service
-            port:
-              number: 80
-
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: agent-skeptic-bench
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: agent-skeptic-bench-hpa
-  namespace: agent-skeptic-bench
+  namespace: production
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: agent-skeptic-bench-api
-  minReplicas: 2
-  maxReplicas: 20
+    name: agent-skeptic-bench
+  minReplicas: 3
+  maxReplicas: 10
   metrics:
   - type: Resource
     resource:
@@ -181,250 +177,20 @@ spec:
       target:
         type: Utilization
         averageUtilization: 80
-  - type: Pods
-    pods:
-      metric:
-        name: http_requests_per_second
-      target:
-        type: AverageValue
-        averageValue: "100"
   behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
     scaleUp:
       stabilizationWindowSeconds: 60
       policies:
       - type: Percent
         value: 50
         periodSeconds: 60
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-      - type: Percent
-        value: 25
+      - type: Pods
+        value: 2
         periodSeconds: 60
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: redis
-  namespace: agent-skeptic-bench
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: redis
-  template:
-    metadata:
-      labels:
-        app: redis
-    spec:
-      containers:
-      - name: redis
-        image: redis:7-alpine
-        ports:
-        - containerPort: 6379
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        volumeMounts:
-        - name: redis-storage
-          mountPath: /data
-      volumes:
-      - name: redis-storage
-        persistentVolumeClaim:
-          claimName: redis-pvc
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: redis-service
-  namespace: agent-skeptic-bench
-spec:
-  ports:
-  - port: 6379
-    targetPort: 6379
-  selector:
-    app: redis
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: postgres
-  namespace: agent-skeptic-bench
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: postgres
-  template:
-    metadata:
-      labels:
-        app: postgres
-    spec:
-      containers:
-      - name: postgres
-        image: postgres:15-alpine
-        ports:
-        - containerPort: 5432
-        env:
-        - name: POSTGRES_DB
-          value: "agent_skeptic_bench"
-        - name: POSTGRES_USER
-          value: "skeptic_user"
-        - name: POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: agent-skeptic-secrets
-              key: POSTGRES_PASSWORD
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
-        volumeMounts:
-        - name: postgres-storage
-          mountPath: /var/lib/postgresql/data
-      volumes:
-      - name: postgres-storage
-        persistentVolumeClaim:
-          claimName: postgres-pvc
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres-service
-  namespace: agent-skeptic-bench
-spec:
-  ports:
-  - port: 5432
-    targetPort: 5432
-  selector:
-    app: postgres
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: agent-skeptic-data-pvc
-  namespace: agent-skeptic-bench
-spec:
-  accessModes:
-    - ReadOnlyMany
-  resources:
-    requests:
-      storage: 10Gi
-  storageClassName: fast-ssd
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: agent-skeptic-logs-pvc
-  namespace: agent-skeptic-bench
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 5Gi
-  storageClassName: standard
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: redis-pvc
-  namespace: agent-skeptic-bench
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 2Gi
-  storageClassName: fast-ssd
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-pvc
-  namespace: agent-skeptic-bench
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
-  storageClassName: fast-ssd
-
----
-apiVersion: v1
-kind: ServiceMonitor
-metadata:
-  name: agent-skeptic-bench-metrics
-  namespace: agent-skeptic-bench
-  labels:
-    app: agent-skeptic-bench-api
-spec:
-  selector:
-    matchLabels:
-      app: agent-skeptic-bench-api
-  endpoints:
-  - port: http
-    path: /metrics
-    interval: 30s
-
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: agent-skeptic-bench-network-policy
-  namespace: agent-skeptic-bench
-spec:
-  podSelector:
-    matchLabels:
-      app: agent-skeptic-bench-api
-  policyTypes:
-  - Ingress
-  - Egress
-  ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          name: ingress-nginx
-    - podSelector:
-        matchLabels:
-          app: prometheus
-    ports:
-    - protocol: TCP
-      port: 8000
-  egress:
-  - to:
-    - podSelector:
-        matchLabels:
-          app: redis
-    ports:
-    - protocol: TCP
-      port: 6379
-  - to:
-    - podSelector:
-        matchLabels:
-          app: postgres
-    ports:
-    - protocol: TCP
-      port: 5432
-  - to: []
-    ports:
-    - protocol: TCP
-      port: 443
-    - protocol: TCP
-      port: 80
+      selectPolicy: Max
