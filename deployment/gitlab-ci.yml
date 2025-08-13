@@ -1,0 +1,86 @@
+stages:
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+
+# Test stage
+test:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install -e .
+    - pip install -e ".[dev]"
+  script:
+    - ruff check src/ tests/
+    - black --check src/ tests/
+    - mypy src/
+    - python test_quantum_core.py
+    - pytest tests/ -v --cov=src --cov-report=xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+# Security scanning
+security:
+  stage: security
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker run --rm -v $(pwd):/app -w /app aquasec/trivy fs .
+    - docker run --rm -v $(pwd):/app -w /app securecodewarrior/docker-gosec /app
+
+# Build Docker image
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_TAG .
+    - docker push $IMAGE_TAG
+  only:
+    - main
+    - develop
+    - tags
+
+# Deploy to staging
+deploy_staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    - kubectl config use-context $KUBE_CONTEXT_STAGING
+    - kubectl set image deployment/agent-skeptic-bench agent-skeptic-bench=$IMAGE_TAG
+    - kubectl rollout status deployment/agent-skeptic-bench --timeout=300s
+  environment:
+    name: staging
+    url: https://staging.agent-skeptic-bench.com
+  only:
+    - develop
+
+# Deploy to production
+deploy_production:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    - kubectl config use-context $KUBE_CONTEXT_PRODUCTION
+    - kubectl set image deployment/agent-skeptic-bench agent-skeptic-bench=$IMAGE_TAG
+    - kubectl rollout status deployment/agent-skeptic-bench --timeout=600s
+  environment:
+    name: production
+    url: https://api.agent-skeptic-bench.com
+  when: manual
+  only:
+    - main
+    - tags

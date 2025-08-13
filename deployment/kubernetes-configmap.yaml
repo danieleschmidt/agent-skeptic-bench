@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-skeptic-bench-config
+  namespace: production
+data:
+  app.yaml: |
+    server:
+      host: 0.0.0.0
+      port: 8000
+      workers: 4
+      timeout: 300
+      keepalive: 2
+    
+    logging:
+      level: INFO
+      format: json
+      output: stdout
+    
+    cache:
+      type: redis
+      ttl: 3600
+      max_size: 10000
+    
+    security:
+      rate_limit: 100
+      rate_window: 60
+      max_request_size: 10485760
+      cors_origins:
+        - https://agent-skeptic-bench.com
+        - https://api.agent-skeptic-bench.com
+    
+    monitoring:
+      metrics_enabled: true
+      tracing_enabled: true
+      health_check_interval: 30
+    
+    features:
+      quantum_optimization: true
+      auto_scaling: true
+      advanced_analytics: true
+      distributed_processing: true
+  
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    rule_files:
+      - "alert_rules.yml"
+    
+    scrape_configs:
+      - job_name: 'agent-skeptic-bench'
+        static_configs:
+          - targets: ['agent-skeptic-bench-service:8000']
+        metrics_path: /metrics
+        scrape_interval: 30s
+    
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093

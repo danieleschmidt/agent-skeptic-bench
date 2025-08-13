@@ -5,9 +5,20 @@ import logging
 import time
 from typing import Any
 
-import google.generativeai as genai
-import openai
-from anthropic import Anthropic
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
+try:
+    import openai
+except ImportError:
+    openai = None
+
+try:
+    from anthropic import Anthropic
+except ImportError:
+    Anthropic = None
 
 from .models import (
     AgentConfig,
@@ -109,6 +120,8 @@ class OpenAISkepticAgent(BaseSkepticAgent):
 
     def __init__(self, config: AgentConfig):
         super().__init__(config)
+        if openai is None:
+            raise ImportError("OpenAI package not installed. Install with: pip install openai")
         self.client = openai.OpenAI(
             api_key=config.api_key,
             base_url=config.base_url
@@ -154,6 +167,8 @@ class AnthropicSkepticAgent(BaseSkepticAgent):
 
     def __init__(self, config: AgentConfig):
         super().__init__(config)
+        if Anthropic is None:
+            raise ImportError("Anthropic package not installed. Install with: pip install anthropic")
         self.client = Anthropic(api_key=config.api_key)
 
     async def evaluate_claim(self, scenario: Scenario, context: dict[str, Any] | None = None) -> SkepticResponse:
@@ -194,6 +209,8 @@ class GoogleSkepticAgent(BaseSkepticAgent):
 
     def __init__(self, config: AgentConfig):
         super().__init__(config)
+        if genai is None:
+            raise ImportError("Google Generative AI package not installed. Install with: pip install google-generativeai")
         genai.configure(api_key=config.api_key)
         self.model = genai.GenerativeModel(config.model_name)
 

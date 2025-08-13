@@ -1,0 +1,1409 @@
+#!/usr/bin/env python3
+"""
+Production Deployment Suite
+==========================
+
+Complete production-ready deployment system with containerization,
+orchestration, monitoring, and CI/CD pipeline automation.
+"""
+
+import os
+import json
+import subprocess
+try:
+    import yaml
+except ImportError:
+    yaml = None
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
+from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class DeploymentConfig:
+    """Production deployment configuration."""
+    environment: str
+    replicas: int
+    resource_limits: Dict[str, str]
+    secrets: List[str]
+    volumes: List[Dict[str, str]]
+    health_check: Dict[str, Any]
+    autoscaling: Dict[str, Any]
+
+class ProductionDeploymentManager:
+    """Manages complete production deployment lifecycle."""
+    
+    def __init__(self, project_root: str = "."):
+        self.project_root = Path(project_root)
+        self.deployment_dir = self.project_root / "deployment"
+        self.deployment_dir.mkdir(exist_ok=True)
+        
+    def generate_production_manifests(self) -> Dict[str, str]:
+        """Generate all production deployment manifests."""
+        manifests = {}
+        
+        # Generate Dockerfile
+        manifests["Dockerfile"] = self._generate_dockerfile()
+        
+        # Generate Docker Compose for production
+        manifests["docker-compose.production.yml"] = self._generate_docker_compose()
+        
+        # Generate Kubernetes manifests
+        manifests["kubernetes-deployment.yaml"] = self._generate_kubernetes_deployment()
+        manifests["kubernetes-service.yaml"] = self._generate_kubernetes_service()
+        manifests["kubernetes-ingress.yaml"] = self._generate_kubernetes_ingress()
+        manifests["kubernetes-configmap.yaml"] = self._generate_kubernetes_configmap()
+        manifests["kubernetes-secrets.yaml"] = self._generate_kubernetes_secrets()
+        
+        # Generate CI/CD pipeline
+        manifests["github-actions-ci.yml"] = self._generate_github_actions()
+        manifests["gitlab-ci.yml"] = self._generate_gitlab_ci()
+        
+        # Generate monitoring configs
+        manifests["prometheus.yml"] = self._generate_prometheus_config()
+        manifests["grafana-dashboard.json"] = self._generate_grafana_dashboard()
+        manifests["alertmanager.yml"] = self._generate_alertmanager_config()
+        
+        # Generate deployment scripts
+        manifests["deploy.sh"] = self._generate_deployment_script()
+        manifests["rollback.sh"] = self._generate_rollback_script()
+        
+        # Save all manifests
+        for filename, content in manifests.items():
+            file_path = self.deployment_dir / filename
+            with open(file_path, 'w') as f:
+                f.write(content)
+            
+        return manifests
+    
+    def _generate_dockerfile(self) -> str:
+        """Generate optimized production Dockerfile."""
+        return '''# Multi-stage production Dockerfile for Agent Skeptic Bench
+FROM python:3.11-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \\
+    gcc \\
+    g++ \\
+    git \\
+    curl \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \\
+    && pip install --no-cache-dir -r requirements.txt
+
+# Production stage
+FROM python:3.11-slim as production
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \\
+    curl \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY src/ ./src/
+COPY data/ ./data/
+COPY docs/ ./docs/
+COPY pyproject.toml ./
+COPY README.md ./
+
+# Install application
+RUN pip install --no-cache-dir -e .
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/cache /app/uploads \\
+    && chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \\
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Environment variables
+ENV PYTHONPATH=/app/src
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV GUNICORN_WORKERS=4
+ENV GUNICORN_TIMEOUT=300
+
+# Start command
+CMD ["gunicorn", "--config", "deployment/gunicorn.conf.py", "agent_skeptic_bench.api.app:app"]
+'''
+    
+    def _generate_docker_compose(self) -> str:
+        """Generate production Docker Compose configuration."""
+        return '''version: '3.8'
+
+services:
+  agent-skeptic-bench:
+    build:
+      context: .
+      target: production
+    image: agent-skeptic-bench:latest
+    container_name: agent-skeptic-bench-prod
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - REDIS_URL=redis://redis:6379/0
+      - POSTGRES_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/agent_skeptic_bench
+      - PROMETHEUS_METRICS=true
+      - JAEGER_AGENT_HOST=jaeger
+    volumes:
+      - ./logs:/app/logs
+      - ./cache:/app/cache
+      - ./uploads:/app/uploads
+      - ./data:/app/data:ro
+    depends_on:
+      - redis
+      - postgres
+      - prometheus
+    networks:
+      - agent-skeptic-bench
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-prod
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - agent-skeptic-bench
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-prod
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=agent_skeptic_bench
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - agent-skeptic-bench
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./static:/usr/share/nginx/html/static:ro
+    depends_on:
+      - agent-skeptic-bench
+    networks:
+      - agent-skeptic-bench
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-prod
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - agent-skeptic-bench
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/dashboard.json:ro
+    depends_on:
+      - prometheus
+    networks:
+      - agent-skeptic-bench
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger-prod
+    restart: unless-stopped
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
+    networks:
+      - agent-skeptic-bench
+
+volumes:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  agent-skeptic-bench:
+    driver: bridge
+'''
+    
+    def _generate_kubernetes_deployment(self) -> str:
+        """Generate Kubernetes deployment manifest."""
+        return '''apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-skeptic-bench
+  namespace: production
+  labels:
+    app: agent-skeptic-bench
+    version: v1.0.0
+    environment: production
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: agent-skeptic-bench
+  template:
+    metadata:
+      labels:
+        app: agent-skeptic-bench
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: agent-skeptic-bench
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: agent-skeptic-bench
+        image: agent-skeptic-bench:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: agent-skeptic-bench-secrets
+              key: redis-url
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: agent-skeptic-bench-secrets
+              key: postgres-url
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agent-skeptic-bench-secrets
+              key: openai-api-key
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: agent-skeptic-bench-secrets
+              key: anthropic-api-key
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: data
+          mountPath: /app/data
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+        - name: cache
+          mountPath: /app/cache
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+      volumes:
+      - name: config
+        configMap:
+          name: agent-skeptic-bench-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: agent-skeptic-bench-data
+      - name: logs
+        persistentVolumeClaim:
+          claimName: agent-skeptic-bench-logs
+      - name: cache
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - agent-skeptic-bench
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-skeptic-bench
+  namespace: production
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agent-skeptic-bench-pdb
+  namespace: production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: agent-skeptic-bench
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agent-skeptic-bench-hpa
+  namespace: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: agent-skeptic-bench
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Max
+'''
+    
+    def _generate_kubernetes_service(self) -> str:
+        """Generate Kubernetes service manifest."""
+        return '''apiVersion: v1
+kind: Service
+metadata:
+  name: agent-skeptic-bench-service
+  namespace: production
+  labels:
+    app: agent-skeptic-bench
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: agent-skeptic-bench
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-skeptic-bench-headless
+  namespace: production
+  labels:
+    app: agent-skeptic-bench
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: agent-skeptic-bench
+'''
+    
+    def _generate_kubernetes_ingress(self) -> str:
+        """Generate Kubernetes ingress manifest."""
+        return '''apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agent-skeptic-bench-ingress
+  namespace: production
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - api.agent-skeptic-bench.com
+    secretName: agent-skeptic-bench-tls
+  rules:
+  - host: api.agent-skeptic-bench.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: agent-skeptic-bench-service
+            port:
+              number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-skeptic-bench-netpol
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: agent-skeptic-bench
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: database
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: cache
+    ports:
+    - protocol: TCP
+      port: 6379
+'''
+    
+    def _generate_kubernetes_configmap(self) -> str:
+        """Generate Kubernetes ConfigMap."""
+        return '''apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-skeptic-bench-config
+  namespace: production
+data:
+  app.yaml: |
+    server:
+      host: 0.0.0.0
+      port: 8000
+      workers: 4
+      timeout: 300
+      keepalive: 2
+    
+    logging:
+      level: INFO
+      format: json
+      output: stdout
+    
+    cache:
+      type: redis
+      ttl: 3600
+      max_size: 10000
+    
+    security:
+      rate_limit: 100
+      rate_window: 60
+      max_request_size: 10485760
+      cors_origins:
+        - https://agent-skeptic-bench.com
+        - https://api.agent-skeptic-bench.com
+    
+    monitoring:
+      metrics_enabled: true
+      tracing_enabled: true
+      health_check_interval: 30
+    
+    features:
+      quantum_optimization: true
+      auto_scaling: true
+      advanced_analytics: true
+      distributed_processing: true
+  
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    rule_files:
+      - "alert_rules.yml"
+    
+    scrape_configs:
+      - job_name: 'agent-skeptic-bench'
+        static_configs:
+          - targets: ['agent-skeptic-bench-service:8000']
+        metrics_path: /metrics
+        scrape_interval: 30s
+    
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - alertmanager:9093
+'''
+    
+    def _generate_kubernetes_secrets(self) -> str:
+        """Generate Kubernetes secrets template."""
+        return '''# NOTE: This is a template. Replace with actual base64-encoded secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agent-skeptic-bench-secrets
+  namespace: production
+type: Opaque
+data:
+  # Base64 encoded values - use: echo -n 'value' | base64
+  redis-url: cmVkaXM6Ly9yZWRpcy1zZXJ2aWNlOjYzNzkvMA==  # redis://redis-service:6379/0
+  postgres-url: cG9zdGdyZXNxbDovL3VzZXI6cGFzc0Bwb3N0Z3Jlcy1zZXJ2aWNlOjU0MzIvYWdlbnRfc2tlcHRpY19iZW5jaA==
+  openai-api-key: WU9VUl9PUEVOQUlfQVBJX0tFWQ==  # YOUR_OPENAI_API_KEY
+  anthropic-api-key: WU9VUl9BTlRIUk9QSUNfQVBJX0tFWQ==  # YOUR_ANTHROPIC_API_KEY
+  google-api-key: WU9VUl9HT09HTEVfQVBJX0tFWQ==  # YOUR_GOOGLE_API_KEY
+  jwt-secret: WU9VUl9KV1RfU0VDUkVUX0tFWQ==  # YOUR_JWT_SECRET_KEY
+  encryption-key: WU9VUl9FTkNSWVBUSU9OX0tFWQ==  # YOUR_ENCRYPTION_KEY
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: registry-secret
+  namespace: production
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJyZWdpc3RyeS5leGFtcGxlLmNvbSI6IHsKCQkJImF1dGgiOiAiWW1GelpUWTBPbXBoYkhKaGJEUTRMM3B5ZDJ4dVoyVjVaVzF6CQkJInVzZXJuYW1lIjogImJhc2U2NCIsCgkJCSJwYXNzd29yZCI6ICJqYWxycWw0OC96cndsbnpleWVtcyIKCQl9Cgl9Cn0=
+'''
+    
+    def _generate_github_actions(self) -> str:
+        """Generate GitHub Actions CI/CD pipeline."""
+        return '''name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11, 3.12]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install -e ".[dev]"
+    
+    - name: Run linting
+      run: |
+        ruff check src/ tests/
+        black --check src/ tests/
+        isort --check-only src/ tests/
+    
+    - name: Run type checking
+      run: mypy src/
+    
+    - name: Run security scan
+      run: |
+        bandit -r src/
+        safety check
+    
+    - name: Run quantum core tests
+      run: python test_quantum_core.py
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/unit/ -v --cov=src --cov-report=xml
+    
+    - name: Run integration tests
+      run: pytest tests/integration/ -v
+    
+    - name: Run performance tests
+      run: pytest tests/performance/ -v --benchmark-only
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  build:
+    needs: [test, security]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+    
+    - name: Deploy to staging
+      run: |
+        aws eks update-kubeconfig --name agent-skeptic-bench-staging
+        kubectl set image deployment/agent-skeptic-bench agent-skeptic-bench=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        kubectl rollout status deployment/agent-skeptic-bench --timeout=300s
+    
+    - name: Run smoke tests
+      run: |
+        kubectl port-forward service/agent-skeptic-bench-service 8080:80 &
+        sleep 10
+        curl -f http://localhost:8080/health || exit 1
+
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    environment: production
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+    
+    - name: Deploy to production
+      run: |
+        aws eks update-kubeconfig --name agent-skeptic-bench-production
+        kubectl set image deployment/agent-skeptic-bench agent-skeptic-bench=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}
+        kubectl rollout status deployment/agent-skeptic-bench --timeout=600s
+    
+    - name: Run production tests
+      run: |
+        kubectl port-forward service/agent-skeptic-bench-service 8080:80 &
+        sleep 30
+        curl -f https://api.agent-skeptic-bench.com/health || exit 1
+        
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
+'''
+    
+    def _generate_gitlab_ci(self) -> str:
+        """Generate GitLab CI/CD pipeline."""
+        return '''stages:
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+
+# Test stage
+test:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install -e .
+    - pip install -e ".[dev]"
+  script:
+    - ruff check src/ tests/
+    - black --check src/ tests/
+    - mypy src/
+    - python test_quantum_core.py
+    - pytest tests/ -v --cov=src --cov-report=xml
+  coverage: '/(?i)total.*? (100(?:\\.0+)?\\%|[1-9]?\\d(?:\\.\\d+)?\\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+# Security scanning
+security:
+  stage: security
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker run --rm -v $(pwd):/app -w /app aquasec/trivy fs .
+    - docker run --rm -v $(pwd):/app -w /app securecodewarrior/docker-gosec /app
+
+# Build Docker image
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_TAG .
+    - docker push $IMAGE_TAG
+  only:
+    - main
+    - develop
+    - tags
+
+# Deploy to staging
+deploy_staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    - kubectl config use-context $KUBE_CONTEXT_STAGING
+    - kubectl set image deployment/agent-skeptic-bench agent-skeptic-bench=$IMAGE_TAG
+    - kubectl rollout status deployment/agent-skeptic-bench --timeout=300s
+  environment:
+    name: staging
+    url: https://staging.agent-skeptic-bench.com
+  only:
+    - develop
+
+# Deploy to production
+deploy_production:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    - kubectl config use-context $KUBE_CONTEXT_PRODUCTION
+    - kubectl set image deployment/agent-skeptic-bench agent-skeptic-bench=$IMAGE_TAG
+    - kubectl rollout status deployment/agent-skeptic-bench --timeout=600s
+  environment:
+    name: production
+    url: https://api.agent-skeptic-bench.com
+  when: manual
+  only:
+    - main
+    - tags
+'''
+    
+    def _generate_prometheus_config(self) -> str:
+        """Generate Prometheus configuration."""
+        return '''global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'agent-skeptic-bench-prod'
+    environment: 'production'
+
+rule_files:
+  - "alert_rules.yml"
+  - "recording_rules.yml"
+
+scrape_configs:
+  - job_name: 'agent-skeptic-bench'
+    static_configs:
+      - targets: ['agent-skeptic-bench-service:8000']
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    
+  - job_name: 'kubernetes-apiservers'
+    kubernetes_sd_configs:
+      - role: endpoints
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
+        
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+      - role: node
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+        
+  - job_name: 'kubernetes-pods'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+      timeout: 10s
+      api_version: v2
+'''
+    
+    def _generate_grafana_dashboard(self) -> str:
+        """Generate Grafana dashboard configuration."""
+        return json.dumps({
+            "dashboard": {
+                "id": None,
+                "title": "Agent Skeptic Bench - Production Dashboard",
+                "tags": ["agent-skeptic-bench", "production"],
+                "timezone": "browser",
+                "panels": [
+                    {
+                        "id": 1,
+                        "title": "Request Rate",
+                        "type": "stat",
+                        "targets": [
+                            {
+                                "expr": "rate(http_requests_total{job='agent-skeptic-bench'}[5m])",
+                                "legendFormat": "RPS"
+                            }
+                        ],
+                        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+                    },
+                    {
+                        "id": 2,
+                        "title": "Response Time",
+                        "type": "graph",
+                        "targets": [
+                            {
+                                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job='agent-skeptic-bench'}[5m]))",
+                                "legendFormat": "95th percentile"
+                            },
+                            {
+                                "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job='agent-skeptic-bench'}[5m]))",
+                                "legendFormat": "50th percentile"
+                            }
+                        ],
+                        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+                    },
+                    {
+                        "id": 3,
+                        "title": "Error Rate",
+                        "type": "stat",
+                        "targets": [
+                            {
+                                "expr": "rate(http_requests_total{job='agent-skeptic-bench',status=~'5..'}[5m]) / rate(http_requests_total{job='agent-skeptic-bench'}[5m])",
+                                "legendFormat": "Error Rate"
+                            }
+                        ],
+                        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+                    },
+                    {
+                        "id": 4,
+                        "title": "Active Connections",
+                        "type": "stat",
+                        "targets": [
+                            {
+                                "expr": "active_connections{job='agent-skeptic-bench'}",
+                                "legendFormat": "Connections"
+                            }
+                        ],
+                        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+                    },
+                    {
+                        "id": 5,
+                        "title": "Memory Usage",
+                        "type": "stat",
+                        "targets": [
+                            {
+                                "expr": "process_resident_memory_bytes{job='agent-skeptic-bench'} / 1024 / 1024",
+                                "legendFormat": "Memory (MB)"
+                            }
+                        ],
+                        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+                    }
+                ],
+                "refresh": "30s",
+                "time": {"from": "now-1h", "to": "now"},
+                "timepicker": {
+                    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+                }
+            }
+        }, indent=2)
+    
+    def _generate_alertmanager_config(self) -> str:
+        """Generate Alertmanager configuration."""
+        return '''global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@agent-skeptic-bench.com'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+  routes:
+  - match:
+      severity: critical
+    receiver: 'critical-alerts'
+  - match:
+      severity: warning
+    receiver: 'warning-alerts'
+
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://slack-webhook-service:8080/webhook'
+
+- name: 'critical-alerts'
+  email_configs:
+  - to: 'ops-team@agent-skeptic-bench.com'
+    subject: 'CRITICAL Alert - Agent Skeptic Bench'
+    body: |
+      Alert: {{ .GroupLabels.alertname }}
+      Summary: {{ .CommonAnnotations.summary }}
+      Description: {{ .CommonAnnotations.description }}
+  slack_configs:
+  - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    channel: '#alerts-critical'
+    title: 'Critical Alert - Agent Skeptic Bench'
+    text: '{{ .CommonAnnotations.summary }}'
+  
+- name: 'warning-alerts'
+  slack_configs:
+  - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    channel: '#alerts-warning'
+    title: 'Warning Alert - Agent Skeptic Bench'
+    text: '{{ .CommonAnnotations.summary }}'
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']
+'''
+    
+    def _generate_deployment_script(self) -> str:
+        """Generate deployment script."""
+        return '''#!/bin/bash
+set -euo pipefail
+
+# Agent Skeptic Bench Production Deployment Script
+# Usage: ./deploy.sh [environment] [version]
+
+ENVIRONMENT=${1:-production}
+VERSION=${2:-latest}
+NAMESPACE="agent-skeptic-bench-${ENVIRONMENT}"
+
+echo "🚀 Deploying Agent Skeptic Bench v${VERSION} to ${ENVIRONMENT}"
+
+# Validate environment
+case $ENVIRONMENT in
+  staging|production)
+    echo "✅ Environment: $ENVIRONMENT"
+    ;;
+  *)
+    echo "❌ Invalid environment. Use 'staging' or 'production'"
+    exit 1
+    ;;
+esac
+
+# Check prerequisites
+command -v kubectl >/dev/null 2>&1 || { echo "❌ kubectl not found"; exit 1; }
+command -v docker >/dev/null 2>&1 || { echo "❌ docker not found"; exit 1; }
+
+# Set kubectl context
+echo "📋 Setting kubectl context for $ENVIRONMENT"
+kubectl config use-context "agent-skeptic-bench-${ENVIRONMENT}"
+
+# Create namespace if it doesn't exist
+kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+# Apply secrets (if not exist)
+echo "🔐 Applying secrets"
+kubectl apply -f kubernetes-secrets.yaml -n $NAMESPACE
+
+# Apply configmaps
+echo "📝 Applying configuration"
+kubectl apply -f kubernetes-configmap.yaml -n $NAMESPACE
+
+# Deploy application
+echo "🚀 Deploying application"
+kubectl apply -f kubernetes-deployment.yaml -n $NAMESPACE
+kubectl apply -f kubernetes-service.yaml -n $NAMESPACE
+kubectl apply -f kubernetes-ingress.yaml -n $NAMESPACE
+
+# Wait for rollout
+echo "⏳ Waiting for deployment to complete"
+kubectl rollout status deployment/agent-skeptic-bench -n $NAMESPACE --timeout=600s
+
+# Verify deployment
+echo "🔍 Verifying deployment"
+kubectl get pods -n $NAMESPACE -l app=agent-skeptic-bench
+kubectl get services -n $NAMESPACE
+
+# Run health check
+echo "❤️  Running health check"
+kubectl port-forward -n $NAMESPACE service/agent-skeptic-bench-service 8080:80 &
+PF_PID=$!
+sleep 10
+
+if curl -f http://localhost:8080/health; then
+    echo "✅ Health check passed"
+else
+    echo "❌ Health check failed"
+    kill $PF_PID 2>/dev/null || true
+    exit 1
+fi
+
+kill $PF_PID 2>/dev/null || true
+
+echo "🎉 Deployment completed successfully!"
+echo "📊 Monitor at: https://grafana.agent-skeptic-bench.com"
+echo "🔗 API URL: https://api.agent-skeptic-bench.com"
+'''
+    
+    def _generate_rollback_script(self) -> str:
+        """Generate rollback script."""
+        return '''#!/bin/bash
+set -euo pipefail
+
+# Agent Skeptic Bench Rollback Script
+# Usage: ./rollback.sh [environment] [revision]
+
+ENVIRONMENT=${1:-production}
+REVISION=${2:-}
+NAMESPACE="agent-skeptic-bench-${ENVIRONMENT}"
+
+echo "🔄 Rolling back Agent Skeptic Bench in ${ENVIRONMENT}"
+
+# Validate environment
+case $ENVIRONMENT in
+  staging|production)
+    echo "✅ Environment: $ENVIRONMENT"
+    ;;
+  *)
+    echo "❌ Invalid environment. Use 'staging' or 'production'"
+    exit 1
+    ;;
+esac
+
+# Set kubectl context
+kubectl config use-context "agent-skeptic-bench-${ENVIRONMENT}"
+
+if [ -z "$REVISION" ]; then
+    echo "🔍 Finding previous revision"
+    REVISION=$(kubectl rollout history deployment/agent-skeptic-bench -n $NAMESPACE | tail -2 | head -1 | awk '{print $1}')
+    echo "📝 Rolling back to revision: $REVISION"
+fi
+
+# Perform rollback
+echo "🔄 Performing rollback"
+kubectl rollout undo deployment/agent-skeptic-bench -n $NAMESPACE --to-revision=$REVISION
+
+# Wait for rollback to complete
+echo "⏳ Waiting for rollback to complete"
+kubectl rollout status deployment/agent-skeptic-bench -n $NAMESPACE --timeout=300s
+
+# Verify rollback
+echo "🔍 Verifying rollback"
+kubectl get pods -n $NAMESPACE -l app=agent-skeptic-bench
+
+# Run health check
+echo "❤️  Running health check"
+kubectl port-forward -n $NAMESPACE service/agent-skeptic-bench-service 8080:80 &
+PF_PID=$!
+sleep 10
+
+if curl -f http://localhost:8080/health; then
+    echo "✅ Rollback successful - health check passed"
+else
+    echo "❌ Rollback failed - health check failed"
+    kill $PF_PID 2>/dev/null || true
+    exit 1
+fi
+
+kill $PF_PID 2>/dev/null || true
+
+echo "🎉 Rollback completed successfully!"
+echo "📊 Monitor at: https://grafana.agent-skeptic-bench.com"
+'''
+
+def main():
+    """Generate all production deployment manifests."""
+    print("🚀 GENERATING PRODUCTION DEPLOYMENT SUITE")
+    print("=" * 60)
+    
+    manager = ProductionDeploymentManager()
+    manifests = manager.generate_production_manifests()
+    
+    print(f"✅ Generated {len(manifests)} deployment manifests:")
+    for filename in manifests.keys():
+        print(f"  📄 {filename}")
+    
+    print(f"\n📁 All files saved to: {manager.deployment_dir}")
+    print("\n🎯 Next Steps:")
+    print("1. Review and customize the generated manifests")
+    print("2. Set up your container registry and Kubernetes cluster")
+    print("3. Configure secrets and environment variables")
+    print("4. Run ./deployment/deploy.sh production")
+    print("5. Monitor deployment at your Grafana dashboard")
+    
+    return manifests
+
+if __name__ == "__main__":
+    manifests = main()
