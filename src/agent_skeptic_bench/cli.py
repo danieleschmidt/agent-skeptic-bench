@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .algorithms.optimization import SkepticismCalibrator
+from .autonomous_sdlc import AutonomousSDLC
 from .benchmark import SkepticBenchmark
 from .evaluation import compare_agents, run_full_evaluation
 from .models import ScenarioCategory
@@ -465,7 +466,106 @@ Examples:
     predict_parser.add_argument('--parameters', required=True,
                                help='Agent parameters file (JSON)')
 
+    # Autonomous SDLC commands
+    sdlc_parser = subparsers.add_parser('autonomous-sdlc', help='Execute autonomous SDLC cycle')
+    sdlc_parser.add_argument('--project-root', type=Path, default=Path.cwd(),
+                            help='Project root directory')
+    sdlc_parser.add_argument('--generation', choices=['1', '2', '3', 'all'], default='all',
+                            help='Execute specific generation or all')
+    sdlc_parser.add_argument('--output', '-o',
+                            help='Output file for SDLC results (JSON)')
+    
+    # SDLC status command
+    status_parser = subparsers.add_parser('sdlc-status', help='Check autonomous SDLC status')
+    status_parser.add_argument('--project-root', type=Path, default=Path.cwd(),
+                              help='Project root directory')
+
     return parser
+
+
+async def cmd_autonomous_sdlc(args) -> None:
+    """Execute autonomous SDLC cycle."""
+    print("🚀 Starting Autonomous SDLC Execution")
+    print(f"Project root: {args.project_root}")
+    print(f"Generation: {args.generation}")
+    
+    try:
+        # Initialize autonomous SDLC
+        sdlc = AutonomousSDLC(project_root=args.project_root)
+        
+        if args.generation == 'all':
+            # Execute full autonomous SDLC cycle
+            results = await sdlc.execute_autonomous_sdlc()
+            
+            print(f"\n✅ Autonomous SDLC completed in {results['execution_time']:.2f}s")
+            print(f"Overall success: {results['success']}")
+            
+            # Display generation results
+            for gen_result in results['generation_results']:
+                status = "✅" if gen_result.success else "❌"
+                time_taken = gen_result.end_time - gen_result.start_time if gen_result.end_time else 0
+                print(f"{status} {gen_result.generation.value.title()}: {time_taken:.2f}s")
+        else:
+            # Execute specific generation
+            from .autonomous_sdlc import SDLCGeneration
+            generation_map = {
+                '1': SDLCGeneration.GENERATION_1_WORK,
+                '2': SDLCGeneration.GENERATION_2_ROBUST,
+                '3': SDLCGeneration.GENERATION_3_SCALE
+            }
+            
+            generation = generation_map[args.generation]
+            result = await sdlc._execute_generation(generation)
+            
+            status = "✅" if result.success else "❌"
+            time_taken = result.end_time - result.start_time if result.end_time else 0
+            print(f"{status} {generation.value.title()} completed in {time_taken:.2f}s")
+            print(f"Tasks completed: {len(result.tasks_completed)}")
+        
+        # Save results if output file specified
+        if args.output:
+            with open(args.output, 'w') as f:
+                json.dump(results if args.generation == 'all' else result.__dict__, f, indent=2, default=str)
+            print(f"Results saved to {args.output}")
+            
+    except Exception as e:
+        print(f"❌ SDLC execution failed: {e}")
+        sys.exit(1)
+
+
+def cmd_sdlc_status(args) -> None:
+    """Check autonomous SDLC status."""
+    print("📊 Autonomous SDLC Status")
+    print(f"Project root: {args.project_root}")
+    
+    try:
+        # Initialize and get status
+        sdlc = AutonomousSDLC(project_root=args.project_root)
+        summary = sdlc.get_execution_summary()
+        
+        if summary['status'] == 'not_executed':
+            print("❌ No SDLC execution history found")
+            print("Run 'autonomous-sdlc' command to execute SDLC cycle")
+            return
+        
+        print(f"Status: {summary['current_status']}")
+        print(f"Success Rate: {summary['success_rate']:.1%}")
+        print(f"Total Generations: {summary['total_generations']}")
+        print(f"Successful Generations: {summary['successful_generations']}")
+        print(f"Total Tasks Completed: {summary['total_tasks_completed']}")
+        print(f"Total Execution Time: {summary['total_execution_time']:.2f}s")
+        print(f"Quantum Enhanced: {summary['quantum_enhanced']}")
+        
+        if summary['project_analysis']:
+            analysis = summary['project_analysis']
+            print(f"\nProject Analysis:")
+            print(f"  Type: {analysis.project_type.value}")
+            print(f"  Language: {analysis.language}")
+            print(f"  Test Coverage: {analysis.test_coverage:.1%}")
+            
+    except Exception as e:
+        print(f"❌ Failed to get SDLC status: {e}")
+        sys.exit(1)
 
 
 def main() -> None:
@@ -494,6 +594,10 @@ def main() -> None:
             asyncio.run(cmd_optimize(args))
         elif args.command == 'predict-skepticism':
             cmd_predict_skepticism(args)
+        elif args.command == 'autonomous-sdlc':
+            asyncio.run(cmd_autonomous_sdlc(args))
+        elif args.command == 'sdlc-status':
+            cmd_sdlc_status(args)
         else:
             print(f"Unknown command: {args.command}")
             sys.exit(1)
