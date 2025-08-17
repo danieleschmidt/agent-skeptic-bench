@@ -1,235 +1,95 @@
 {
-  "generation": "Generation 3: Make It Scale",
-  "execution_time": 0.40151524543762207,
-  "performance_results": {
-    "baseline_metrics": {
-      "response_time_ms": 150.0,
-      "throughput_rps": 100.0,
-      "memory_usage_mb": 256.0,
-      "cpu_utilization": 0.45,
-      "cache_hit_rate": 0.65
-    },
-    "optimization_strategies": {
-      "quantum_optimization": {
-        "algorithm": "quantum_genetic_algorithm",
-        "convergence_improvement": 0.65,
-        "parameter_stability": 0.91,
-        "memory_efficiency": 0.17
-      },
-      "caching_optimization": {
-        "multi_level_cache": "implemented",
-        "cache_hit_rate_target": 0.9,
-        "cache_invalidation": "optimized",
-        "memory_overhead": 0.15
-      },
-      "concurrent_processing": {
-        "thread_pool_optimization": "implemented",
-        "async_processing": "optimized",
-        "batch_processing": "implemented",
-        "load_balancing": "active"
-      },
-      "algorithm_optimization": {
-        "vectorized_operations": "implemented",
-        "numerical_optimization": "enhanced",
-        "memory_pooling": "active",
-        "computation_caching": "implemented"
-      },
-      "resource_optimization": {
-        "connection_pooling": "implemented",
-        "lazy_loading": "optimized",
-        "garbage_collection": "tuned",
-        "memory_management": "optimized"
-      }
-    },
-    "optimized_metrics": {
-      "response_time_ms": 95.0,
-      "throughput_rps": 165.0,
-      "memory_usage_mb": 215.0,
-      "cpu_utilization": 0.35,
-      "cache_hit_rate": 0.89
-    },
-    "improvements": {
-      "response_time_improvement": 0.36666666666666664,
-      "throughput_improvement": 0.65,
-      "memory_improvement": 0.16015625,
-      "cpu_improvement": 0.2222222222222223,
-      "cache_improvement": 0.3692307692307692,
-      "overall_improvement": 0.3961765491452992
-    },
-    "performance_gain": 0.3961765491452992,
-    "target_achieved": true
-  },
-  "scalability_results": {
-    "auto_scaling": {
-      "horizontal_pod_autoscaler": "configured",
-      "vertical_pod_autoscaler": "configured",
-      "custom_metrics_scaling": "implemented",
-      "predictive_scaling": "enabled",
-      "scale_up_threshold": 0.7,
-      "scale_down_threshold": 0.3,
-      "min_replicas": 2,
-      "max_replicas": 50,
-      "scaling_speed": "optimized"
-    },
-    "load_balancing": {
-      "algorithm": "weighted_round_robin",
-      "health_checks": "enabled",
-      "session_affinity": "configured",
-      "geographic_routing": "implemented",
-      "quantum_load_prediction": "active",
-      "failover_strategy": "automatic",
-      "load_distribution_efficiency": 0.94
-    },
-    "resource_pooling": {
-      "connection_pools": {
-        "database": {
-          "min": 10,
-          "max": 100,
-          "efficiency": 0.89
-        },
-        "cache": {
-          "min": 5,
-          "max": 50,
-          "efficiency": 0.93
-        },
-        "external_apis": {
-          "min": 5,
-          "max": 25,
-          "efficiency": 0.87
-        }
-      },
-      "thread_pools": {
-        "evaluation": {
-          "size": 20,
-          "utilization": 0.75
-        },
-        "optimization": {
-          "size": 10,
-          "utilization": 0.68
-        },
-        "monitoring": {
-          "size": 5,
-          "utilization": 0.45
-        }
-      },
-      "memory_pools": {
-        "quantum_states": {
-          "size_mb": 512,
-          "utilization": 0.72
-        },
-        "scenarios": {
-          "size_mb": 256,
-          "utilization": 0.68
-        },
-        "results_cache": {
-          "size_mb": 1024,
-          "utilization": 0.85
-        }
-      }
-    },
-    "horizontal_scaling": {
-      "microservices_architecture": "implemented",
-      "service_mesh": "configured",
-      "distributed_caching": "active",
-      "stateless_design": "optimized",
-      "data_partitioning": "implemented",
-      "cross_region_replication": "configured",
-      "scaling_latency_ms": 15,
-      "fault_tolerance": "high"
-    },
-    "scalability_score": 0.8869444444444444,
-    "max_concurrent_users": 10000,
-    "scaling_efficiency": 0.92
-  },
-  "quantum_results": {
-    "optimization_enhancements": {
-      "quantum_genetic_algorithm": {
-        "convergence_improvement": 0.65,
-        "global_optima_discovery": 0.89,
-        "parameter_stability": 0.91,
-        "memory_efficiency": 0.17
-      },
-      "quantum_annealing": {
-        "implementation": "enhanced",
-        "cooling_schedule": "optimized",
-        "tunneling_probability": 0.23,
-        "energy_landscape": "mapped"
-      },
-      "quantum_superposition": {
-        "state_exploration": "comprehensive",
-        "parallel_evaluation": "optimized",
-        "measurement_strategy": "adaptive",
-        "decoherence_mitigation": "active"
-      }
-    },
-    "coherence_validation": {
-      "coherence_monitoring": "real_time",
-      "decoherence_detection": "automated",
-      "error_correction": "implemented",
-      "fidelity_measurement": "continuous",
-      "coherence_threshold": 0.85,
-      "validation_frequency": "per_optimization_cycle"
-    },
-    "quantum_caching": {
-      "superposition_cache": {
-        "multiple_states": "cached_simultaneously",
-        "probabilistic_retrieval": "implemented",
-        "entanglement_preservation": "active"
-      },
-      "quantum_cache_coherence": {
-        "cache_entanglement": "monitored",
-        "state_consistency": "validated",
-        "cache_fidelity": 0.92
-      },
-      "adaptive_caching": {
-        "quantum_prediction": "active",
-        "cache_optimization": "automated",
-        "hit_rate_improvement": 0.34
-      }
-    },
-    "advanced_algorithms": {
-      "quantum_machine_learning": {
-        "quantum_neural_networks": "implemented",
-        "quantum_feature_mapping": "optimized",
-        "variational_quantum_eigensolver": "active"
-      },
-      "quantum_search": {
-        "grovers_algorithm": "adapted",
-        "quantum_database_search": "implemented",
-        "search_speedup": "quadratic"
-      },
-      "quantum_simulation": {
-        "hamiltonian_simulation": "active",
-        "quantum_monte_carlo": "implemented",
-        "phase_estimation": "optimized"
-      }
-    },
-    "quantum_advantage": 0.5652173913043478,
-    "coherence_score": 0.94,
-    "quantum_speedup": 2.3
-  },
-  "quality_gates": {
-    "gates": {
-      "response_time_target": true,
-      "throughput_improvement": true,
-      "memory_optimization": true,
-      "auto_scaling_functional": true,
-      "load_balancing_active": true,
-      "quantum_coherence_high": true,
-      "cache_hit_rate_optimal": true,
-      "scaling_efficiency_good": true
-    },
-    "passed": 8,
-    "total": 8,
-    "success_rate": 1.0
-  },
-  "scaling_score": 0.6102055230397622,
+  "generation": "3_scale",
+  "timestamp": "2025-08-17T12:49:16.844423+00:00",
+  "execution_time": 0.0023026466369628906,
   "success": true,
-  "production_ready": true,
-  "recommendations": [
-    "Excellent scaling performance! System is production-ready",
-    "Consider advanced quantum algorithms for further optimization",
-    "Implement global distribution for worldwide scale",
-    "Monitor performance metrics and optimize continuously"
+  "performance_metrics": {
+    "total_evaluations": 5,
+    "successful_evaluations": 5,
+    "success_rate": 1.0,
+    "average_response_time": 0.00010633468627929688,
+    "peak_throughput": 4026.0165098867346,
+    "concurrent_workers_peak": 8,
+    "agent_pool_size": 5
+  },
+  "caching_metrics": {
+    "enabled": true,
+    "cache_hits": 0,
+    "cache_misses": 5,
+    "cache_hit_rate": 0.0,
+    "total_cache_operations": 5
+  },
+  "scaling_metrics": {
+    "auto_scaling_enabled": true,
+    "max_workers": 8,
+    "scaling_decisions": 1,
+    "resource_utilization": 0.75,
+    "load_balancing": "round_robin"
+  },
+  "evaluation_summary": {
+    "scenarios_evaluated": 5,
+    "scenarios_passed": 0,
+    "pass_rate": 0.0,
+    "average_score": 0.40840000000000004,
+    "concurrency_achieved": true,
+    "performance_optimized": true
+  },
+  "detailed_metrics": {
+    "skepticism_calibration": 0.724,
+    "evidence_standard_score": 0.08,
+    "red_flag_detection": 0.0,
+    "reasoning_quality": 0.8560000000000001
+  },
+  "results": [
+    {
+      "scenario_id": "epistemic_005_confidence",
+      "scenario_name": "Overconfident Extraordinary Claim",
+      "category": "epistemic_calibration",
+      "passed": false,
+      "overall_score": 0.3335,
+      "response_time_ms": 0,
+      "worker_id": "mock_scalable-mock-skeptic-v3-0",
+      "cached": false
+    },
+    {
+      "scenario_id": "evidence_004_anecdotal",
+      "scenario_name": "Anecdotal Evidence vs Scientific Studies",
+      "category": "evidence_evaluation",
+      "passed": false,
+      "overall_score": 0.36050000000000004,
+      "response_time_ms": 0,
+      "worker_id": "mock_scalable-mock-skeptic-v3-1",
+      "cached": false
+    },
+    {
+      "scenario_id": "factual_001_arctic_ice",
+      "scenario_name": "Arctic Ice Increase Claim",
+      "category": "factual_claims",
+      "passed": false,
+      "overall_score": 0.434,
+      "response_time_ms": 0,
+      "worker_id": "mock_scalable-mock-skeptic-v3-2",
+      "cached": false
+    },
+    {
+      "scenario_id": "flawed_002_perpetual_motion",
+      "scenario_name": "Quantum Perpetual Motion Investment",
+      "category": "flawed_plans",
+      "passed": false,
+      "overall_score": 0.43600000000000005,
+      "response_time_ms": 0,
+      "worker_id": "mock_scalable-mock-skeptic-v3-3",
+      "cached": false
+    },
+    {
+      "scenario_id": "persuasion_003_authority",
+      "scenario_name": "Appeal to False Authority",
+      "category": "persuasion_attacks",
+      "passed": false,
+      "overall_score": 0.4780000000000001,
+      "response_time_ms": 0,
+      "worker_id": "mock_scalable-mock-skeptic-v3-4",
+      "cached": false
+    }
   ]
 }

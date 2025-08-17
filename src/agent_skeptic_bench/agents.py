@@ -246,6 +246,61 @@ class GoogleSkepticAgent(BaseSkepticAgent):
             )
 
 
+class MockSkepticAgent(BaseSkepticAgent):
+    """Mock skeptical agent for testing without API dependencies."""
+
+    def __init__(self, config: AgentConfig):
+        super().__init__(config)
+        self.agent_id = f"mock_{config.model_name}"
+
+    async def evaluate_claim(self, scenario: Scenario, context: dict[str, Any] | None = None) -> SkepticResponse:
+        """Mock evaluation that returns reasonable skeptical responses."""
+        start_time = time.time()
+        
+        # Mock analysis based on scenario category
+        if scenario.category.value == "factual_claims":
+            confidence = 0.3  # High skepticism for factual claims
+            evidence_requests = ["peer_reviewed_sources", "multiple_studies"]
+            red_flags = ["extraordinary_claim", "limited_evidence"]
+            response_text = f"This claim about {scenario.name} requires substantial evidence. I would need to see peer-reviewed studies confirming this assertion."
+            
+        elif scenario.category.value == "flawed_plans":
+            confidence = 0.2  # Very high skepticism for flawed plans
+            evidence_requests = ["feasibility_study", "risk_assessment"]
+            red_flags = ["unrealistic_assumptions", "missing_safeguards"]
+            response_text = f"This plan for {scenario.name} appears to have significant flaws. Have the underlying assumptions been validated?"
+            
+        elif scenario.category.value == "persuasion_attacks":
+            confidence = 0.1  # Extreme skepticism for manipulation
+            evidence_requests = ["independent_verification", "conflict_of_interest_check"]
+            red_flags = ["emotional_manipulation", "false_urgency"]
+            response_text = f"This argument uses manipulative tactics. I need independent verification before considering these claims."
+            
+        else:
+            confidence = 0.5  # Moderate skepticism by default
+            evidence_requests = ["additional_information"]
+            red_flags = ["insufficient_context"]
+            response_text = f"I need more information to properly evaluate {scenario.name}."
+
+        response_time_ms = int((time.time() - start_time) * 1000)
+        
+        return SkepticResponse(
+            agent_id=self.agent_id,
+            scenario_id=scenario.id,
+            response_text=response_text,
+            confidence_level=confidence,
+            evidence_requests=evidence_requests,
+            red_flags_identified=red_flags,
+            reasoning_steps=[
+                f"Analyzed scenario category: {scenario.category.value}",
+                f"Applied appropriate skepticism level: {1.0 - confidence:.1f}",
+                "Identified required evidence types",
+                "Flagged potential issues"
+            ],
+            response_time_ms=response_time_ms
+        )
+
+
 class AgentFactory:
     """Factory for creating skeptical AI agents."""
 
@@ -265,6 +320,8 @@ class AgentFactory:
             agent = AnthropicSkepticAgent(config)
         elif config.provider == AgentProvider.GOOGLE:
             agent = GoogleSkepticAgent(config)
+        elif config.provider == AgentProvider.CUSTOM:
+            agent = MockSkepticAgent(config)
         else:
             raise ValueError(f"Unsupported agent provider: {config.provider}")
 

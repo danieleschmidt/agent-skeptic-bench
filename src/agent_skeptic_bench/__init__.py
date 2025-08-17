@@ -17,6 +17,7 @@ from .agents import (
     AnthropicSkepticAgent,
     BaseSkepticAgent,
     GoogleSkepticAgent,
+    MockSkepticAgent,
     OpenAISkepticAgent,
     create_skeptic_agent,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "OpenAISkepticAgent",
     "AnthropicSkepticAgent",
     "GoogleSkepticAgent",
+    "MockSkepticAgent",
     "create_skeptic_agent",
     "run_full_evaluation",
     "EvaluationReport",
