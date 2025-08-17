@@ -360,6 +360,53 @@ class InputValidator:
 
         return False
 
+    def validate_agent_config(self, config_data: dict[str, Any]) -> dict[str, Any]:
+        """Validate agent configuration data."""
+        validated = {}
+        
+        # Validate provider
+        provider = config_data.get("provider", "").lower()
+        if provider not in ["openai", "anthropic", "google", "custom"]:
+            raise ValidationError("Invalid provider", "provider", provider)
+        validated["provider"] = provider
+        
+        # Validate model name
+        model_name = config_data.get("model_name", "")
+        if not model_name or len(model_name) > 100:
+            raise ValidationError("Invalid model name", "model_name", model_name)
+        validated["model_name"] = self.sanitize_text(model_name)
+        
+        # Validate API key
+        api_key = config_data.get("api_key", "")
+        if not api_key or len(api_key) > 200:
+            raise ValidationError("Invalid API key", "api_key")
+        validated["api_key"] = api_key  # Don't log/sanitize API keys
+        
+        # Validate temperature
+        temperature = config_data.get("temperature", 0.5)
+        if not isinstance(temperature, (int, float)) or not 0.0 <= temperature <= 2.0:
+            raise ValidationError("Temperature must be between 0.0 and 2.0", "temperature", temperature)
+        validated["temperature"] = float(temperature)
+        
+        return validated
+    
+    def sanitize_text(self, text: str, max_length: int = 1000) -> str:
+        """Sanitize text input."""
+        if not isinstance(text, str):
+            text = str(text)
+        
+        # Remove null bytes and control characters
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+        
+        # Normalize whitespace
+        text = ' '.join(text.split())
+        
+        # Truncate if needed
+        if len(text) > max_length:
+            text = text[:max_length]
+        
+        return text.strip()
+
 
 class InputSanitizer:
     """Input sanitization utilities."""

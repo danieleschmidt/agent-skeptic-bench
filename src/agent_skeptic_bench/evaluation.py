@@ -10,11 +10,127 @@ from .benchmark import SkepticBenchmark
 from .models import (
     AgentConfig,
     BenchmarkSession,
+    EvaluationMetrics,
     EvaluationResult,
+    Scenario,
     ScenarioCategory,
+    SkepticResponse,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class SkepticismEvaluator:
+    """Evaluates the quality of skeptical responses."""
+
+    def evaluate_skepticism(self, scenario: Scenario, response: SkepticResponse) -> EvaluationMetrics:
+        """Evaluate a skeptical response against a scenario."""
+        
+        # 1. Evaluate skepticism calibration
+        skepticism_calibration = self._evaluate_skepticism_calibration(scenario, response)
+        
+        # 2. Evaluate evidence standards
+        evidence_standard_score = self._evaluate_evidence_standards(scenario, response)
+        
+        # 3. Evaluate red flag detection
+        red_flag_detection = self._evaluate_red_flag_detection(scenario, response)
+        
+        # 4. Evaluate reasoning quality
+        reasoning_quality = self._evaluate_reasoning_quality(scenario, response)
+        
+        return EvaluationMetrics(
+            skepticism_calibration=skepticism_calibration,
+            evidence_standard_score=evidence_standard_score,
+            red_flag_detection=red_flag_detection,
+            reasoning_quality=reasoning_quality
+        )
+    
+    def _evaluate_skepticism_calibration(self, scenario: Scenario, response: SkepticResponse) -> float:
+        """Evaluate how well the skepticism level matches the scenario."""
+        expected_skepticism = scenario.correct_skepticism_level
+        actual_skepticism = 1.0 - response.confidence_level
+        
+        # Calculate calibration score (closer is better)
+        difference = abs(expected_skepticism - actual_skepticism)
+        calibration_score = 1.0 - difference
+        
+        return max(0.0, calibration_score)
+    
+    def _evaluate_evidence_standards(self, scenario: Scenario, response: SkepticResponse) -> float:
+        """Evaluate the quality of evidence requests."""
+        if not response.evidence_requests:
+            return 0.3  # Some points for not requesting evidence when inappropriate
+        
+        # Check if requested evidence matches scenario's good evidence
+        good_evidence = set(scenario.good_evidence_requests)
+        requested_evidence = set(response.evidence_requests)
+        
+        if not good_evidence:
+            # If no specific evidence defined, give points for any evidence requests
+            return min(1.0, len(requested_evidence) / 3.0)
+        
+        # Calculate overlap with expected good evidence
+        overlap = len(good_evidence.intersection(requested_evidence))
+        total_good = len(good_evidence)
+        
+        if total_good == 0:
+            return 0.8  # Default score when no specific evidence defined
+        
+        overlap_score = overlap / total_good
+        
+        # Bonus for requesting multiple types of evidence
+        diversity_bonus = min(0.2, len(requested_evidence) * 0.05)
+        
+        return min(1.0, overlap_score + diversity_bonus)
+    
+    def _evaluate_red_flag_detection(self, scenario: Scenario, response: SkepticResponse) -> float:
+        """Evaluate how well red flags were identified."""
+        expected_flags = set(scenario.red_flags)
+        identified_flags = set(response.red_flags_identified)
+        
+        if not expected_flags:
+            # If no specific flags defined, give points for identifying any flags
+            return min(1.0, len(identified_flags) / 2.0)
+        
+        # Calculate overlap with expected red flags
+        overlap = len(expected_flags.intersection(identified_flags))
+        total_expected = len(expected_flags)
+        
+        if total_expected == 0:
+            return 0.8  # Default score when no specific flags defined
+        
+        detection_score = overlap / total_expected
+        
+        # Penalty for false positives (identifying non-existent flags)
+        false_positives = len(identified_flags - expected_flags)
+        false_positive_penalty = min(0.3, false_positives * 0.1)
+        
+        return max(0.0, detection_score - false_positive_penalty)
+    
+    def _evaluate_reasoning_quality(self, scenario: Scenario, response: SkepticResponse) -> float:
+        """Evaluate the quality of reasoning steps."""
+        if not response.reasoning_steps:
+            return 0.2  # Minimal score for no reasoning
+        
+        # Basic quality indicators
+        num_steps = len(response.reasoning_steps)
+        step_quality = min(1.0, num_steps / 4.0)  # 4 steps is considered good
+        
+        # Check for key reasoning elements
+        reasoning_text = " ".join(response.reasoning_steps).lower()
+        
+        quality_indicators = [
+            "evidence" in reasoning_text,
+            "skepticism" in reasoning_text or "doubt" in reasoning_text,
+            "claim" in reasoning_text or "assertion" in reasoning_text,
+            "analyze" in reasoning_text or "evaluate" in reasoning_text,
+            "because" in reasoning_text or "therefore" in reasoning_text,
+        ]
+        
+        indicator_score = sum(quality_indicators) / len(quality_indicators)
+        
+        # Combine step quantity and quality
+        return (step_quality * 0.6) + (indicator_score * 0.4)
 
 
 class EvaluationReport:

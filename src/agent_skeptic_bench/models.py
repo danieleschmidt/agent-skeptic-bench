@@ -79,8 +79,7 @@ class AgentConfig(BaseModel):
     timeout: int = Field(default=30, gt=0)
     retry_attempts: int = Field(default=3, ge=0)
 
-    class Config:
-        use_enum_values = True
+    model_config = {"use_enum_values": True, "protected_namespaces": ()}
 
 
 class EvaluationTask(BaseModel):
