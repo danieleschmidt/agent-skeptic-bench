@@ -1,67 +1,94 @@
 {
-  "execution_time": 0.018816232681274414,
-  "total_gates": 7,
-  "passed_gates": 7,
-  "overall_score": 0.9657142857142856,
-  "gate_results": [
+  "mandatory_gates": {
+    "passed": 4,
+    "total": 5,
+    "success_rate": 0.8,
+    "production_ready": false
+  },
+  "overall": {
+    "passed": 4,
+    "total": 5,
+    "success_rate": 0.8,
+    "production_ready": false
+  },
+  "gate_details": [
     {
-      "name": "Code Structure",
-      "passed": true,
-      "score": 1.0,
-      "issues": [],
-      "status": "\u2705 PASS"
+      "name": "code_execution",
+      "description": "Code runs without errors",
+      "status": "passed",
+      "message": "Quantum core tests executed successfully",
+      "mandatory": true,
+      "execution_time": 0.057959794998168945,
+      "details": {
+        "stdout": "\ud83d\ude80 QUANTUM-INSPIRED OPTIMIZATION - CORE TESTS\n============================================================\nTesting quantum algorithms without external dependencies\n============================================================\n\n\ud83d\udccb Quantum State Creation\n----------------------------------------\n\ud83d\udd2c Testing Quantum State Creation...\n  \u2705 Amplitude: (0.707+0.707j)\n  \u2705 Probability: 1.000\n  \u2705 Parameters: {'temperature': 0.5, 'threshold': 0.7}\n\u2705 PASSED (0.000s)\n\n\ud83d\udccb Probability Calculations\n-------------------"
+      }
     },
     {
-      "name": "Security Implementation",
-      "passed": true,
-      "score": 0.92,
-      "issues": [],
-      "status": "\u2705 PASS"
+      "name": "test_coverage",
+      "description": "Tests pass (minimum 85% coverage)",
+      "status": "passed",
+      "message": "Tests passed with estimated 85.2% coverage",
+      "mandatory": true,
+      "execution_time": 0.29946398735046387,
+      "details": {
+        "coverage": 85.2,
+        "test_output": "e high accuracy with fast evaluation\n\n\u26a1 Efficiency Ranking:\n   1. classical_threshold: 149376.1 accuracy/second\n   2. simple_bayesian: 142399.2 accuracy/second\n   3. keyword_frequency: 120778.5 accuracy/second\n\n\ud83d\udcbe Results saved to: simple_validation_results.json\n\n\u2705 VALIDATION COMPLETED SUCCESSFULLY!\n"
+      }
     },
     {
-      "name": "Monitoring Capabilities",
-      "passed": true,
-      "score": 0.94,
-      "issues": [],
-      "status": "\u2705 PASS"
+      "name": "security_scan",
+      "description": "Security scan passes",
+      "status": "failed",
+      "message": "Security scan found 22 issues",
+      "mandatory": true,
+      "execution_time": 0.03629755973815918,
+      "details": {
+        "issues": [
+          "comprehensive_quality_gates.py:87: Potential hardcoded password",
+          "enhanced_validation.py: Use of eval() detected",
+          "enhanced_validation.py: Use of exec() detected",
+          "generation_2_demo.py: Use of eval() detected",
+          "generation_2_demo.py: Use of exec() detected",
+          "comprehensive_quality_gates_new.py: Use of eval() detected",
+          "comprehensive_quality_gates_new.py: Use of exec() detected",
+          "comprehensive_quality_gates_new.py: Dangerous subprocess call with shell=True",
+          "comprehensive_quality_gates_new.py:192: Potential hardcoded password",
+          "comprehensive_quality_gates_new.py:196: Potential hardcoded password"
+        ]
+      }
     },
     {
-      "name": "Global Deployment",
-      "passed": true,
-      "score": 0.95,
-      "issues": [
-        "Missing global features: ['multi-region']"
-      ],
-      "status": "\u2705 PASS"
+      "name": "performance_benchmark",
+      "description": "Performance benchmarks met",
+      "status": "passed",
+      "message": "Performance benchmarks met: 94.7% success rate in 0.04s",
+      "mandatory": true,
+      "execution_time": 0.1620042324066162,
+      "details": {
+        "success_rate": 94.7,
+        "cache_efficiency": 0.0,
+        "validation_time": 0.04
+      }
     },
     {
-      "name": "Research Extensions",
-      "passed": true,
-      "score": 1.0,
-      "issues": [],
-      "status": "\u2705 PASS"
-    },
-    {
-      "name": "Adaptive Learning",
-      "passed": true,
-      "score": 0.95,
-      "issues": [],
-      "status": "\u2705 PASS"
-    },
-    {
-      "name": "Production Readiness",
-      "passed": true,
-      "score": 1.0,
-      "issues": [],
-      "status": "\u2705 PASS"
+      "name": "documentation",
+      "description": "Documentation updated",
+      "status": "passed",
+      "message": "Documentation complete: 100.0% coverage",
+      "mandatory": true,
+      "execution_time": 0.0029249191284179688,
+      "details": {
+        "documentation_files": [
+          "README.md",
+          "CHANGELOG.md",
+          "docs/API_REFERENCE.md",
+          "docs/ARCHITECTURE.md"
+        ],
+        "documented_python_files": "61/61",
+        "overall_score": 1.0
+      }
     }
   ],
-  "summary": {
-    "grade": "A+ (Exceptional)",
-    "production_ready": true,
-    "critical_issues": 0,
-    "average_score": 0.9657142857142856
-  },
-  "recommendations": [],
-  "pass_rate": 1.0
+  "execution_time": 0.5587313175201416,
+  "timestamp": 1755741513.2534533
 }
