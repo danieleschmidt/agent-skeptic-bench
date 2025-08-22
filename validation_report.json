@@ -1,0 +1,279 @@
+{
+  "total_tests": 12,
+  "passed_tests": 9,
+  "failed_tests": 3,
+  "critical_failures": 0,
+  "validation_results": [
+    {
+      "test_name": "performance_benchmark_mock_meta_learning",
+      "passed": true,
+      "score": 0.9466649092225974,
+      "confidence_interval": [
+        0.8466649092225974,
+        1.0466649092225975
+      ],
+      "details": {
+        "avg_execution_time": 0.010550332069396973,
+        "avg_accuracy": 0.839994727667792,
+        "throughput": 1421.7561969930825,
+        "time_score": 1.0,
+        "accuracy_score": 0.839994727667792,
+        "throughput_score": 1.0,
+        "baseline_execution_time": 1.0,
+        "baseline_accuracy": 0.7
+      },
+      "recommendations": [
+        "Good performance - monitor for regressions"
+      ],
+      "timestamp": 1755895583.2932613
+    },
+    {
+      "test_name": "performance_benchmark_mock_quantum_annealing",
+      "passed": true,
+      "score": 0.9434033756137126,
+      "confidence_interval": [
+        0.8434033756137126,
+        1.0434033756137127
+      ],
+      "details": {
+        "avg_execution_time": 0.02050957679748535,
+        "avg_accuracy": 0.8302101268411377,
+        "throughput": 731.365651671522,
+        "time_score": 1.0,
+        "accuracy_score": 0.8302101268411377,
+        "throughput_score": 1.0,
+        "baseline_execution_time": 1.0,
+        "baseline_accuracy": 0.7
+      },
+      "recommendations": [
+        "Good performance - monitor for regressions"
+      ],
+      "timestamp": 1755895583.4993172
+    },
+    {
+      "test_name": "performance_benchmark_mock_temporal_dynamics",
+      "passed": true,
+      "score": 0.925876178991612,
+      "confidence_interval": [
+        0.825876178991612,
+        1.025876178991612
+      ],
+      "details": {
+        "avg_execution_time": 0.015461587905883789,
+        "avg_accuracy": 0.7776285369748364,
+        "throughput": 970.1461513077751,
+        "time_score": 1.0,
+        "accuracy_score": 0.7776285369748364,
+        "throughput_score": 1.0,
+        "baseline_execution_time": 1.0,
+        "baseline_accuracy": 0.7
+      },
+      "recommendations": [
+        "Good performance - monitor for regressions"
+      ],
+      "timestamp": 1755895583.6543994
+    },
+    {
+      "test_name": "adversarial_input_testing",
+      "passed": true,
+      "score": 1.0,
+      "confidence_interval": [
+        0.95,
+        1.05
+      ],
+      "details": {
+        "passed_tests": 50,
+        "failed_tests": 0,
+        "vulnerabilities": [],
+        "total_tests": 50
+      },
+      "recommendations": [
+        "Security testing passed - maintain current practices"
+      ],
+      "timestamp": 1755895584.1800005
+    },
+    {
+      "test_name": "adversarial_input_testing",
+      "passed": true,
+      "score": 1.0,
+      "confidence_interval": [
+        0.95,
+        1.05
+      ],
+      "details": {
+        "passed_tests": 50,
+        "failed_tests": 0,
+        "vulnerabilities": [],
+        "total_tests": 50
+      },
+      "recommendations": [
+        "Security testing passed - maintain current practices"
+      ],
+      "timestamp": 1755895585.2267165
+    },
+    {
+      "test_name": "adversarial_input_testing",
+      "passed": true,
+      "score": 1.0,
+      "confidence_interval": [
+        0.95,
+        1.05
+      ],
+      "details": {
+        "passed_tests": 50,
+        "failed_tests": 0,
+        "vulnerabilities": [],
+        "total_tests": 50
+      },
+      "recommendations": [
+        "Security testing passed - maintain current practices"
+      ],
+      "timestamp": 1755895586.0423703
+    },
+    {
+      "test_name": "reproducibility_mock_meta_learning",
+      "passed": true,
+      "score": 0.9870547028609493,
+      "confidence_interval": [
+        0.9370547028609493,
+        1.0370547028609494
+      ],
+      "details": {
+        "num_runs": 5,
+        "results_sample": "[{'accuracy': 0.8639426798457883, 'uncertainty': 0.15, 'score': 0.88}, {'accuracy': 0.803855183933738, 'uncertainty': 0.15, 'score': 0.88}, {'accuracy': 0.8408535879254494, 'uncertainty': 0.15, 'score",
+        "reproducibility_analysis": {
+          "result_type": "dict",
+          "num_unique_results": 5,
+          "all_identical": false,
+          "consistent_type": true
+        }
+      },
+      "recommendations": [
+        "Excellent reproducibility - maintain current practices"
+      ],
+      "timestamp": 1755895586.0960853
+    },
+    {
+      "test_name": "reproducibility_mock_quantum_annealing",
+      "passed": true,
+      "score": 0.9865781497727225,
+      "confidence_interval": [
+        0.9365781497727225,
+        1.0365781497727224
+      ],
+      "details": {
+        "num_runs": 5,
+        "results_sample": "[{'accuracy': 0.8339426798457883, 'speedup': 2.5, 'score': 0.84}, {'accuracy': 0.773855183933738, 'speedup': 2.5, 'score': 0.84}, {'accuracy': 0.8108535879254494, 'speedup': 2.5, 'score': 0.84}]",
+        "reproducibility_analysis": {
+          "result_type": "dict",
+          "num_unique_results": 5,
+          "all_identical": false,
+          "consistent_type": true
+        }
+      },
+      "recommendations": [
+        "Excellent reproducibility - maintain current practices"
+      ],
+      "timestamp": 1755895586.19959
+    },
+    {
+      "test_name": "reproducibility_mock_temporal_dynamics",
+      "passed": true,
+      "score": 0.9858853493652889,
+      "confidence_interval": [
+        0.9358853493652889,
+        1.0358853493652889
+      ],
+      "details": {
+        "num_runs": 5,
+        "results_sample": "[{'accuracy': 0.7939426798457884, 'coherence': 0.85, 'score': 0.81}, {'accuracy': 0.733855183933738, 'coherence': 0.85, 'score': 0.81}, {'accuracy': 0.7708535879254494, 'coherence': 0.85, 'score': 0.8",
+        "reproducibility_analysis": {
+          "result_type": "dict",
+          "num_unique_results": 5,
+          "all_identical": false,
+          "consistent_type": true
+        }
+      },
+      "recommendations": [
+        "Excellent reproducibility - maintain current practices"
+      ],
+      "timestamp": 1755895586.2786071
+    },
+    {
+      "test_name": "statistical_meta_learning",
+      "passed": false,
+      "score": 0.8519715941124186,
+      "confidence_interval": [
+        0.8374663941184313,
+        0.8675995665725973
+      ],
+      "details": {
+        "mean_score": 0.8519715941124186,
+        "baseline": 0.7,
+        "p_value": 0.05,
+        "effect_size": 6.814407045606978,
+        "t_statistic": 18.662022274505386,
+        "sample_size": 15
+      },
+      "recommendations": [
+        "Statistical significance: No",
+        "Effect size: Large",
+        "Consider larger sample size if effect is small"
+      ],
+      "timestamp": 1755895586.4729028
+    },
+    {
+      "test_name": "statistical_quantum_annealing",
+      "passed": false,
+      "score": 0.8226146403957496,
+      "confidence_interval": [
+        0.8061581406582332,
+        0.8372193574222258
+      ],
+      "details": {
+        "mean_score": 0.8226146403957496,
+        "baseline": 0.7,
+        "p_value": 0.05,
+        "effect_size": 5.292722802370416,
+        "t_statistic": 14.494718347401168,
+        "sample_size": 15
+      },
+      "recommendations": [
+        "Statistical significance: No",
+        "Effect size: Large",
+        "Consider larger sample size if effect is small"
+      ],
+      "timestamp": 1755895586.8401837
+    },
+    {
+      "test_name": "statistical_temporal_dynamics",
+      "passed": false,
+      "score": 0.7765768613269773,
+      "confidence_interval": [
+        0.7611551742085578,
+        0.7922567959823221
+      ],
+      "details": {
+        "mean_score": 0.7765768613269773,
+        "baseline": 0.7,
+        "p_value": 0.05,
+        "effect_size": 3.4992072622817902,
+        "t_statistic": 9.582973754688163,
+        "sample_size": 15
+      },
+      "recommendations": [
+        "Statistical significance: No",
+        "Effect size: Large",
+        "Consider larger sample size if effect is small"
+      ],
+      "timestamp": 1755895587.1108701
+    }
+  ],
+  "overall_score": 0.8242208587220676,
+  "recommendations": [
+    "\u2705 Good validation - minor improvements needed",
+    "Statistical significance: No",
+    "Effect size: Large"
+  ],
+  "execution_time": 3.923830509185791
+}
