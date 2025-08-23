@@ -104,6 +104,7 @@ class SkepticResponse(BaseModel):
     red_flags_identified: list[str] = Field(default_factory=list)
     reasoning_steps: list[str] = Field(default_factory=list)
     response_time_ms: int = Field(ge=0)
+    quality_score: float = Field(default=0.5, ge=0.0, le=1.0)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 

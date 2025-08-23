@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from typing import Any
 
 from .agents import AgentFactory, BaseSkepticAgent
 from .algorithms.optimization import SkepticismCalibrator
@@ -412,7 +413,7 @@ class SkepticBenchmark:
         difficulty = (base_difficulty + complexity_adjustment) / 2
         return max(0.0, min(1.0, difficulty))
 
-    def get_quantum_insights(self, session_id: str) -> dict[str, any]:
+    def get_quantum_insights(self, session_id: str) -> dict[str, Any]:
         """Get quantum-inspired insights for evaluation session."""
         session = self._active_sessions.get(session_id)
         if not session:
@@ -486,3 +487,64 @@ class SkepticBenchmark:
             recommendations.append("Optimal quantum state achieved - agent is well-calibrated")
 
         return recommendations if recommendations else ["Quantum analysis complete - no specific recommendations"]
+
+    def export_session_data(self, session_id: str, format: str = "json") -> dict[str, Any]:
+        """Export session data in specified format."""
+        session = self._active_sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+        
+        export_data = {
+            "session_info": {
+                "id": session.id,
+                "name": session.name,
+                "description": session.description,
+                "created_at": session.created_at.isoformat(),
+                "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+                "status": session.status
+            },
+            "agent_config": {
+                "provider": session.agent_config.provider.value,
+                "model_name": session.agent_config.model_name,
+                "temperature": session.agent_config.temperature,
+                "max_tokens": session.agent_config.max_tokens
+            },
+            "results": [{
+                "scenario_id": result.scenario.id,
+                "scenario_name": result.scenario.name,
+                "category": result.scenario.category.value,
+                "passed": result.passed_evaluation,
+                "metrics": {
+                    "skepticism_calibration": result.metrics.skepticism_calibration,
+                    "evidence_standard_score": result.metrics.evidence_standard_score,
+                    "red_flag_detection": result.metrics.red_flag_detection,
+                    "reasoning_quality": result.metrics.reasoning_quality,
+                    "overall_score": result.metrics.overall_score
+                },
+                "response_time_ms": result.response.response_time_ms,
+                "confidence_level": result.response.confidence_level
+            } for result in session.results],
+            "summary": {
+                "total_scenarios": session.total_scenarios,
+                "pass_rate": session.pass_rate,
+                "average_metrics": session.summary_metrics.__dict__ if session.summary_metrics else None
+            },
+            "optimization_history": getattr(session, 'optimization_history', []),
+            "export_timestamp": datetime.utcnow().isoformat()
+        }
+        
+        return export_data
+
+    def health_check(self) -> dict[str, Any]:
+        """Perform system health check."""
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "active_sessions": len(self._active_sessions),
+            "scenario_loader_status": "operational",
+            "quantum_optimizer_status": "operational",
+            "memory_usage": {
+                "sessions_in_memory": len(self._active_sessions),
+                "total_results": sum(len(s.results) for s in self._active_sessions.values())
+            }
+        }

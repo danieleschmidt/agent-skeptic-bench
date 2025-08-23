@@ -103,16 +103,55 @@ Respond with:
             elif any(word in line.lower() for word in ['because', 'reason', 'therefore', 'thus']):
                 reasoning_steps.append(line)
 
+        # Enhanced validation and quality checks
+        if confidence_level < 0.0 or confidence_level > 1.0:
+            logger.warning(f"Invalid confidence level {confidence_level}, clamping to [0,1]")
+            confidence_level = max(0.0, min(1.0, confidence_level))
+        
+        # Validate response quality
+        response_quality_score = self._assess_response_quality(response_text, evidence_requests, red_flags, reasoning_steps)
+        
         return SkepticResponse(
-            agent_id=f"{self.provider}_{self.model_name}",
+            agent_id=f"{self.provider.value}_{self.model_name}",
             scenario_id=scenario.id,
             response_text=response_text,
             confidence_level=confidence_level,
             evidence_requests=evidence_requests,
             red_flags_identified=red_flags,
             reasoning_steps=reasoning_steps,
-            response_time_ms=response_time_ms
+            response_time_ms=response_time_ms,
+            quality_score=response_quality_score
         )
+        
+    def _assess_response_quality(self, response_text: str, evidence_requests: list, red_flags: list, reasoning_steps: list) -> float:
+        """Assess the quality of the agent's response."""
+        quality_score = 0.0
+        
+        # Length and completeness check
+        if len(response_text.strip()) > 50:
+            quality_score += 0.2
+        
+        # Evidence requests quality
+        if evidence_requests:
+            quality_score += 0.3
+            if len(evidence_requests) > 1:
+                quality_score += 0.1
+        
+        # Red flag identification
+        if red_flags:
+            quality_score += 0.2
+        
+        # Reasoning quality
+        if reasoning_steps:
+            quality_score += 0.2
+            if len(reasoning_steps) > 1:
+                quality_score += 0.1
+        
+        # Coherence check - simple heuristic
+        if any(keyword in response_text.lower() for keyword in ['because', 'therefore', 'however', 'evidence']):
+            quality_score += 0.1
+        
+        return min(1.0, quality_score)
 
 
 class OpenAISkepticAgent(BaseSkepticAgent):
