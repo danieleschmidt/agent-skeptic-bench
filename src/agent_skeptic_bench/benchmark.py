@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
@@ -13,6 +14,7 @@ from .exceptions import (
     EvaluationError,
     MetricsCalculationError,
 )
+from .features.analytics import UsageTracker
 from .metrics import MetricsCalculator
 from .models import (
     AgentConfig,
@@ -34,11 +36,13 @@ class SkepticBenchmark:
     def __init__(self,
                  scenario_loader: ScenarioLoader | None = None,
                  agent_factory: AgentFactory | None = None,
-                 metrics_calculator: MetricsCalculator | None = None):
+                 metrics_calculator: MetricsCalculator | None = None,
+                 usage_tracker: UsageTracker | None = None):
         """Initialize the benchmark with optional custom components."""
         self.scenario_loader = scenario_loader or ScenarioLoader()
         self.agent_factory = agent_factory or AgentFactory()
         self.metrics_calculator = metrics_calculator or MetricsCalculator()
+        self.usage_tracker = usage_tracker or UsageTracker()
         self._active_sessions: dict[str, BenchmarkSession] = {}
         self.quantum_calibrator = SkepticismCalibrator()
 
@@ -64,9 +68,11 @@ class SkepticBenchmark:
                                skeptic_agent: BaseSkepticAgent,
                                scenario: Scenario,
                                context: dict | None = None,
-                               timeout: float | None = None) -> EvaluationResult:
+                               timeout: float | None = None,
+                               session_id: str | None = None) -> EvaluationResult:
         """Evaluate a single scenario with a skeptic agent."""
         start_time = datetime.utcnow()
+        execution_start = time.time()
         task_id = f"single_{scenario.id}_{start_time.timestamp()}"
 
         try:
@@ -106,6 +112,19 @@ class SkepticBenchmark:
                 },
                 evaluation_notes=validation_errors
             )
+
+            # Record usage metrics if session tracking is enabled
+            if session_id:
+                duration = time.time() - execution_start
+                estimated_tokens = len(str(response.reasoning)) // 4  # Rough token estimation
+                self.usage_tracker.record_evaluation(
+                    session_id=session_id,
+                    scenario_id=scenario.id,
+                    category=str(scenario.category),
+                    duration=duration,
+                    score=metrics.overall_score,
+                    tokens_used=estimated_tokens
+                )
 
             logger.info(f"Evaluated scenario {scenario.id}: Overall score {metrics.overall_score:.3f}")
             return result
@@ -156,12 +175,21 @@ class SkepticBenchmark:
     def create_session(self,
                       name: str,
                       agent_config: AgentConfig,
-                      description: str | None = None) -> BenchmarkSession:
+                      description: str | None = None,
+                      user_id: str | None = None) -> BenchmarkSession:
         """Create a new benchmark session."""
         session = BenchmarkSession(
             name=name,
             description=description,
             agent_config=agent_config
+        )
+
+        # Start usage tracking for this session
+        self.usage_tracker.start_session(
+            session_id=session.id,
+            user_id=user_id,
+            agent_provider=agent_config.provider.value if hasattr(agent_config, 'provider') else None,
+            model=agent_config.model_name if hasattr(agent_config, 'model_name') else None
         )
 
         self._active_sessions[session.id] = session
@@ -187,16 +215,27 @@ class SkepticBenchmark:
             # Create agent
             agent = self.agent_factory.create_agent(session.agent_config)
 
-            # Run evaluation
-            results = await self.evaluate_batch(agent, scenarios, concurrency)
+            # Run evaluation with session tracking
+            results = []
+            for scenario in scenarios:
+                result = await self.evaluate_scenario(
+                    agent, scenario, context=None, timeout=None, session_id=session.id
+                )
+                results.append(result)
 
             # Add results to session
             for result in results:
                 session.add_result(result)
 
-            # Complete session
+            # Complete session and usage tracking
             session.completed_at = datetime.utcnow()
             session.status = "completed"
+            
+            # End usage tracking and get final metrics
+            final_metrics = self.usage_tracker.end_session(session.id)
+            if final_metrics:
+                logger.info(f"Session {session.id} usage: {final_metrics.evaluation_count} evaluations, "
+                           f"{final_metrics.total_duration:.1f}s duration")
 
             logger.info(f"Session {session.id} completed: {session.pass_rate:.1%} pass rate")
             return session

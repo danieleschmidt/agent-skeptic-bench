@@ -1,0 +1,8 @@
+{
+  "total_sessions": 3,
+  "total_evaluations": 12,
+  "total_duration": 22.4,
+  "total_tokens": 1770,
+  "avg_evaluations_per_session": 4.0,
+  "avg_session_duration": 7.466666666666666
+}

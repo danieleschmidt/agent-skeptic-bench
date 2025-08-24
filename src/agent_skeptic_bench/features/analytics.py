@@ -1,14 +1,19 @@
 """Analytics dashboard functionality for Agent Skeptic Bench."""
 
+import json
 import logging
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any
+from pathlib import Path
+from typing import Any, Dict, List
 
 from ..algorithms.analysis import PatternDetector, ScenarioAnalyzer, TrendAnalyzer
 from ..models import EvaluationResult
+from ..monitoring.metrics import get_metrics_collector
+from .usage_security import UsageMetricsValidator, UsageMetricsEncryption, UsageDataRetentionManager
+from .usage_monitoring import UsageMetricsMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -402,6 +407,264 @@ class MetricsDashboard:
             config={"chart_type": "box_plot", "include_time_series": True},
             last_updated=datetime.utcnow()
         )
+
+
+@dataclass
+class UsageMetrics:
+    """Usage metrics data structure."""
+    
+    timestamp: datetime
+    session_id: str
+    user_id: str | None = None
+    agent_provider: str | None = None
+    model: str | None = None
+    evaluation_count: int = 0
+    total_duration: float = 0.0
+    api_calls: int = 0
+    tokens_used: int = 0
+    scenarios_completed: List[str] = None
+    categories_used: List[str] = None
+    performance_scores: Dict[str, float] = None
+    feature_usage: Dict[str, int] = None
+    
+    def __post_init__(self):
+        if self.scenarios_completed is None:
+            self.scenarios_completed = []
+        if self.categories_used is None:
+            self.categories_used = []
+        if self.performance_scores is None:
+            self.performance_scores = {}
+        if self.feature_usage is None:
+            self.feature_usage = {}
+
+
+class UsageTracker:
+    """Tracks user and system usage metrics with robust security and monitoring."""
+    
+    def __init__(self, storage_path: str = "data/usage_metrics", 
+                 enable_encryption: bool = False, encryption_key: str | None = None):
+        """Initialize usage tracker with security and monitoring."""
+        self.storage_path = Path(storage_path)
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+        self.metrics_collector = get_metrics_collector()
+        self.current_session_metrics: Dict[str, UsageMetrics] = {}
+        
+        # Security and validation
+        self.validator = UsageMetricsValidator()
+        self.encryption = UsageMetricsEncryption(encryption_key) if enable_encryption else None
+        self.retention_manager = UsageDataRetentionManager()
+        
+        # Monitoring
+        self.monitor = UsageMetricsMonitor(self.storage_path)
+        
+        logger.info(f"UsageTracker initialized with storage: {self.storage_path}")
+    
+    def start_session(self, session_id: str, user_id: str | None = None, 
+                     agent_provider: str | None = None, model: str | None = None) -> None:
+        """Start tracking metrics for a session with validation."""
+        # Validate session parameters
+        validation_errors = self.validator.validate_session_creation(session_id, user_id)
+        if validation_errors:
+            logger.error(f"Session validation failed: {validation_errors}")
+            raise ValueError(f"Invalid session parameters: {', '.join(validation_errors)}")
+        
+        self.current_session_metrics[session_id] = UsageMetrics(
+            timestamp=datetime.utcnow(),
+            session_id=session_id,
+            user_id=user_id,
+            agent_provider=agent_provider,
+            model=model
+        )
+        
+        self.metrics_collector.increment_counter("sessions_started")
+        logger.info(f"Started tracking session {session_id}")
+    
+    def record_evaluation(self, session_id: str, scenario_id: str, category: str,
+                         duration: float, score: float, tokens_used: int = 0) -> None:
+        """Record evaluation metrics for a session with validation."""
+        import time
+        start_time = time.time()
+        
+        try:
+            # Validate evaluation parameters
+            validation_errors = self.validator.validate_evaluation_data(
+                session_id, scenario_id, category, duration, score
+            )
+            if validation_errors:
+                logger.error(f"Evaluation validation failed: {validation_errors}")
+                return  # Skip recording invalid data
+            
+            if session_id not in self.current_session_metrics:
+                logger.warning(f"Session {session_id} not found, creating new session")
+                self.start_session(session_id)
+            
+            metrics = self.current_session_metrics[session_id]
+            metrics.evaluation_count += 1
+            metrics.total_duration += duration
+            metrics.tokens_used += tokens_used
+            metrics.scenarios_completed.append(scenario_id)
+            
+            if category not in metrics.categories_used:
+                metrics.categories_used.append(category)
+            
+            if "overall_score" not in metrics.performance_scores:
+                metrics.performance_scores["overall_score"] = []
+            metrics.performance_scores["overall_score"].append(score)
+            
+            self.metrics_collector.increment_counter("evaluations_completed")
+            self.metrics_collector.observe_histogram("evaluation_duration", duration)
+            
+        finally:
+            # Record operation timing for monitoring
+            operation_duration = time.time() - start_time
+            self.monitor.record_operation_timing("record_evaluation", operation_duration)
+        
+    def record_feature_usage(self, session_id: str, feature_name: str) -> None:
+        """Record usage of a specific feature."""
+        if session_id not in self.current_session_metrics:
+            return
+            
+        metrics = self.current_session_metrics[session_id]
+        if feature_name not in metrics.feature_usage:
+            metrics.feature_usage[feature_name] = 0
+        metrics.feature_usage[feature_name] += 1
+        
+        self.metrics_collector.increment_counter("feature_usage", labels={"feature": feature_name})
+    
+    def end_session(self, session_id: str) -> UsageMetrics | None:
+        """End tracking for a session and save metrics."""
+        if session_id not in self.current_session_metrics:
+            return None
+            
+        metrics = self.current_session_metrics[session_id]
+        
+        # Calculate aggregated performance scores
+        for score_type, scores in metrics.performance_scores.items():
+            if scores:
+                metrics.performance_scores[f"{score_type}_avg"] = statistics.mean(scores)
+                metrics.performance_scores[f"{score_type}_max"] = max(scores)
+                metrics.performance_scores[f"{score_type}_min"] = min(scores)
+        
+        # Save to persistent storage
+        self._save_metrics(metrics)
+        
+        # Remove from active tracking
+        del self.current_session_metrics[session_id]
+        
+        self.metrics_collector.increment_counter("sessions_completed")
+        logger.info(f"Ended tracking session {session_id}")
+        
+        return metrics
+    
+    def _save_metrics(self, metrics: UsageMetrics) -> None:
+        """Save metrics to persistent storage with security and monitoring."""
+        import time
+        start_time = time.time()
+        
+        try:
+            # Convert to dict for processing
+            metrics_dict = asdict(metrics)
+            
+            # Apply encryption if enabled
+            if self.encryption:
+                metrics_dict = self.encryption.encrypt_sensitive_data(metrics_dict)
+            
+            # Sanitize data
+            metrics_dict = self.validator.sanitize_user_input(metrics_dict)
+            
+            date_str = metrics.timestamp.strftime("%Y-%m-%d")
+            file_path = self.storage_path / f"usage_metrics_{date_str}.jsonl"
+            
+            with open(file_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(metrics_dict, default=str) + "\n")
+            
+            # Record successful save
+            self.metrics_collector.increment_counter("metrics_saved")
+            logger.debug(f"Saved usage metrics for session {metrics.session_id}")
+                
+        except Exception as e:
+            self.metrics_collector.increment_counter("metrics_save_errors")
+            logger.error(f"Failed to save usage metrics: {e}")
+            raise
+        
+        finally:
+            # Record operation timing
+            operation_duration = time.time() - start_time
+            self.monitor.record_operation_timing("save_metrics", operation_duration)
+    
+    def get_usage_summary(self, days: int = 7) -> Dict[str, Any]:
+        """Get usage summary for the last N days."""
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        all_metrics = self._load_metrics_since(cutoff_date)
+        
+        if not all_metrics:
+            return {"error": "No usage data available"}
+        
+        return {
+            "total_sessions": len(all_metrics),
+            "total_evaluations": sum(m.evaluation_count for m in all_metrics),
+            "total_duration": sum(m.total_duration for m in all_metrics),
+            "total_tokens": sum(m.tokens_used for m in all_metrics),
+            "unique_users": len(set(m.user_id for m in all_metrics if m.user_id)),
+            "popular_providers": self._get_top_providers(all_metrics),
+            "popular_categories": self._get_top_categories(all_metrics),
+            "avg_session_duration": statistics.mean([m.total_duration for m in all_metrics]),
+            "avg_evaluations_per_session": statistics.mean([m.evaluation_count for m in all_metrics])
+        }
+    
+    def _load_metrics_since(self, cutoff_date: datetime) -> List[UsageMetrics]:
+        """Load all metrics since a specific date."""
+        all_metrics = []
+        
+        try:
+            for file_path in self.storage_path.glob("usage_metrics_*.jsonl"):
+                with open(file_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            data = json.loads(line.strip())
+                            metrics_timestamp = datetime.fromisoformat(data["timestamp"])
+                            
+                            if metrics_timestamp >= cutoff_date:
+                                # Convert back to UsageMetrics object
+                                metrics = UsageMetrics(**data)
+                                all_metrics.append(metrics)
+                        except Exception as e:
+                            logger.warning(f"Failed to parse metrics line: {e}")
+                            
+        except Exception as e:
+            logger.error(f"Failed to load usage metrics: {e}")
+            
+        return all_metrics
+    
+    def _get_top_providers(self, metrics: List[UsageMetrics]) -> Dict[str, int]:
+        """Get top agent providers by usage."""
+        provider_counts = {}
+        for m in metrics:
+            if m.agent_provider:
+                provider_counts[m.agent_provider] = provider_counts.get(m.agent_provider, 0) + 1
+        return dict(sorted(provider_counts.items(), key=lambda x: x[1], reverse=True)[:5])
+    
+    def _get_top_categories(self, metrics: List[UsageMetrics]) -> Dict[str, int]:
+        """Get top scenario categories by usage."""
+        category_counts = {}
+        for m in metrics:
+            for category in m.categories_used:
+                category_counts[category] = category_counts.get(category, 0) + 1
+        return dict(sorted(category_counts.items(), key=lambda x: x[1], reverse=True)[:5])
+    
+    async def get_system_health(self) -> Dict[str, Any]:
+        """Get comprehensive system health status."""
+        return await self.monitor.get_system_status()
+    
+    def cleanup_old_data(self, retention_days: int = 90) -> Dict[str, Any]:
+        """Clean up old usage metrics data."""
+        self.retention_manager.retention_days = retention_days
+        return self.retention_manager.cleanup_old_data(self.storage_path)
+    
+    def archive_old_data(self, archive_path: str, retention_days: int = 90) -> Dict[str, Any]:
+        """Archive old usage metrics data."""
+        self.retention_manager.retention_days = retention_days
+        return self.retention_manager.archive_old_data(self.storage_path, Path(archive_path))
 
 
 class TrendDashboard:
