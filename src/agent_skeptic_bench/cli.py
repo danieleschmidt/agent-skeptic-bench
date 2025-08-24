@@ -480,6 +480,19 @@ Examples:
     status_parser.add_argument('--project-root', type=Path, default=Path.cwd(),
                               help='Project root directory')
 
+    # Export usage metrics command
+    export_parser = subparsers.add_parser('export-usage', help='Export usage metrics and analytics')
+    export_parser.add_argument('--days', type=int, default=7,
+                              help='Number of days of data to export (default: 7)')
+    export_parser.add_argument('--format', choices=['json', 'csv', 'excel'], default='json',
+                              help='Export format (default: json)')
+    export_parser.add_argument('--output', '-o', 
+                              help='Output file path (auto-generated if not specified)')
+    export_parser.add_argument('--summary-only', action='store_true',
+                              help='Export only summary analytics, not detailed data')
+    export_parser.add_argument('--include-trends', action='store_true',
+                              help='Include performance trend analysis')
+
     return parser
 
 
@@ -568,6 +581,69 @@ def cmd_sdlc_status(args) -> None:
         sys.exit(1)
 
 
+async def cmd_export_usage(args) -> None:
+    """Export usage metrics and analytics."""
+    from .features.analytics import UsageTracker
+    from .features.export import UsageMetricsExporter, AdvancedAnalyticsExporter
+    from datetime import datetime, timedelta
+    
+    print(f"📊 Exporting usage metrics for last {args.days} days")
+    
+    try:
+        # Initialize components
+        usage_tracker = UsageTracker()
+        metrics_exporter = UsageMetricsExporter()
+        analytics_exporter = AdvancedAnalyticsExporter()
+        
+        # Load usage data
+        cutoff_date = datetime.utcnow() - timedelta(days=args.days)
+        usage_data = usage_tracker._load_metrics_since(cutoff_date)
+        
+        if not usage_data:
+            print("❌ No usage data found for the specified time period")
+            return
+        
+        print(f"Found {len(usage_data)} usage records")
+        
+        # Generate output path if not specified
+        if not args.output:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_extension = "xlsx" if args.format == "excel" else args.format
+            args.output = f"usage_metrics_{timestamp}.{file_extension}"
+        
+        output_path = Path(args.output)
+        
+        # Export based on mode
+        if args.summary_only:
+            # Export summary analytics
+            result = await metrics_exporter.export_usage_summary(
+                usage_data, output_path, args.format
+            )
+        else:
+            # Export detailed usage data
+            result = await metrics_exporter.export_detailed_usage(
+                usage_data, output_path, args.format
+            )
+        
+        if result.success:
+            print(f"✅ Successfully exported {result.records_exported} records to {result.file_path}")
+            
+            # Export trends if requested
+            if args.include_trends:
+                trends_path = output_path.with_stem(f"{output_path.stem}_trends").with_suffix('.json')
+                
+                # We need evaluation results for trends - this would need to be loaded from a results database
+                print("⚠️  Trend analysis requires evaluation results data (not yet implemented)")
+                
+        else:
+            print(f"❌ Export failed: {result.error_message}")
+            sys.exit(1)
+    
+    except Exception as e:
+        print(f"❌ Failed to export usage metrics: {e}")
+        sys.exit(1)
+
+
 def main() -> None:
     """Main CLI entry point."""
     parser = create_parser()
@@ -596,6 +672,8 @@ def main() -> None:
             cmd_predict_skepticism(args)
         elif args.command == 'autonomous-sdlc':
             asyncio.run(cmd_autonomous_sdlc(args))
+        elif args.command == 'export-usage':
+            asyncio.run(cmd_export_usage(args))
         elif args.command == 'sdlc-status':
             cmd_sdlc_status(args)
         else:
