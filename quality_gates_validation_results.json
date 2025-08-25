@@ -1,0 +1,60 @@
+{
+  "timestamp": "2025-08-25T22:29:14.400017",
+  "overall_success_rate": 80.0,
+  "categories_passed": 4,
+  "categories_total": 5,
+  "detailed_results": {
+    "security_gates": {
+      "input_validation": {
+        "passed": 5,
+        "total": 5,
+        "success_rate": 100.0
+      },
+      "authentication": {
+        "status": "loaded"
+      },
+      "rate_limiting": {
+        "allowed": 5,
+        "expected": 5,
+        "passed": true
+      }
+    },
+    "performance_gates": {
+      "cache_performance": {
+        "ops_per_second": 77864.07262331297,
+        "total_time": 0.012842893600463867,
+        "target": 1000,
+        "passed": true
+      },
+      "memory_usage": {
+        "memory_percent": 18.0,
+        "available_mb": 3234.08203125,
+        "memory_passed": true,
+        "available_passed": true,
+        "overall_passed": true
+      }
+    },
+    "reliability_gates": {
+      "error_handling": {
+        "passed": 2,
+        "total": 2,
+        "success_rate": 100.0,
+        "passed_gate": true
+      },
+      "health_monitoring": {
+        "overall_status": "HealthStatus.HEALTHY",
+        "components_count": 1,
+        "is_healthy": true
+      }
+    },
+    "code_quality_gates": {},
+    "integration_gates": {
+      "core_integration": {
+        "method_count": 22,
+        "target": 15,
+        "passed": true
+      },
+      "quantum_core": null
+    }
+  }
+}
