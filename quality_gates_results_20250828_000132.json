@@ -1,0 +1,58 @@
+{
+  "session_id": "3b7d6a37",
+  "timestamp": "2025-08-28T00:01:32.543711+00:00",
+  "metrics": {
+    "test_coverage": 0.0,
+    "security_score": 0.0,
+    "performance_score": 0.0,
+    "documentation_score": 85.0,
+    "code_quality": 100.0,
+    "maintainability": 82.0,
+    "reliability": 0.0,
+    "overall_score": 31.700000000000003
+  },
+  "gates": {
+    "syntax_check": {
+      "status": "passed",
+      "score": 100.0,
+      "execution_time": 0.10068583488464355,
+      "error_message": "",
+      "threshold": 100.0
+    },
+    "unit_tests": {
+      "status": "passed",
+      "score": 92.0,
+      "execution_time": 0.10048604011535645,
+      "error_message": "",
+      "threshold": 85.0
+    },
+    "integration_tests": {
+      "status": "failed",
+      "score": 75.0,
+      "execution_time": 0.10037708282470703,
+      "error_message": "Score 75.0 below threshold 85.0",
+      "threshold": 85.0
+    },
+    "test_coverage": {
+      "status": "pending",
+      "score": 0.0,
+      "execution_time": 0.0,
+      "error_message": "",
+      "threshold": 85.0
+    },
+    "security_scan": {
+      "status": "pending",
+      "score": 0.0,
+      "execution_time": 0.0,
+      "error_message": "",
+      "threshold": 90.0
+    },
+    "performance_bench": {
+      "status": "pending",
+      "score": 0.0,
+      "execution_time": 0.0,
+      "error_message": "",
+      "threshold": 80.0
+    }
+  }
+}

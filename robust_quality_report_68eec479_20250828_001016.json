@@ -1,0 +1,95 @@
+{
+  "session_id": "68eec479",
+  "timestamp": "2025-08-28T00:10:16.682757+00:00",
+  "execution_time": 0.164588,
+  "security_level": "enhanced",
+  "summary": {
+    "total_gates": 5,
+    "passed": 4,
+    "failed": 1,
+    "skipped": 0,
+    "success_rate": 80.0,
+    "overall_score": 91.375
+  },
+  "gates": {
+    "syntax_validation": {
+      "status": "passed",
+      "score": 100.0,
+      "execution_time": 0.06820845603942871,
+      "error_message": "",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.109611400334586,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:10:16.522959+00:00"
+      }
+    },
+    "code_quality_check": {
+      "status": "passed",
+      "score": 88.5,
+      "execution_time": 0.02127814292907715,
+      "error_message": "",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.109611400334586,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:10:16.592874+00:00"
+      }
+    },
+    "security_analysis": {
+      "status": "passed",
+      "score": 95.0,
+      "execution_time": 0.02079463005065918,
+      "error_message": "",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.109611400334586,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:10:16.615772+00:00"
+      }
+    },
+    "performance_validation": {
+      "status": "passed",
+      "score": 82.0,
+      "execution_time": 0.021302223205566406,
+      "error_message": "",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.109611400334586,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:10:16.638138+00:00"
+      }
+    },
+    "integration_validation": {
+      "status": "failed",
+      "score": 60.0,
+      "execution_time": 0.021268844604492188,
+      "error_message": "Score 60.0 below threshold 85.0",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.109611400334586,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:10:16.661130+00:00"
+      }
+    }
+  },
+  "system_resources": {
+    "final": {
+      "cpu_usage": 15.0,
+      "memory_usage": 45.0,
+      "disk_usage": 15.109611400334586,
+      "network_active": true,
+      "timestamp": "2025-08-28 00:10:16.684177+00:00"
+    }
+  }
+}

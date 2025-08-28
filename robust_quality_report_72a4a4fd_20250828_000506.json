@@ -1,0 +1,95 @@
+{
+  "session_id": "72a4a4fd",
+  "timestamp": "2025-08-28T00:05:06.880100+00:00",
+  "execution_time": 0.173688,
+  "security_level": "enhanced",
+  "summary": {
+    "total_gates": 5,
+    "passed": 4,
+    "failed": 1,
+    "skipped": 0,
+    "success_rate": 80.0,
+    "overall_score": 91.375
+  },
+  "gates": {
+    "syntax_validation": {
+      "status": "passed",
+      "score": 100.0,
+      "execution_time": 0.05877351760864258,
+      "error_message": "",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.10620855839171,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:05:06.711532+00:00"
+      }
+    },
+    "code_quality_check": {
+      "status": "passed",
+      "score": 88.5,
+      "execution_time": 0.0218198299407959,
+      "error_message": "",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.10620855839171,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:05:06.772100+00:00"
+      }
+    },
+    "security_analysis": {
+      "status": "passed",
+      "score": 95.0,
+      "execution_time": 0.02510666847229004,
+      "error_message": "",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.10620855839171,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:05:06.795620+00:00"
+      }
+    },
+    "performance_validation": {
+      "status": "passed",
+      "score": 82.0,
+      "execution_time": 0.024770021438598633,
+      "error_message": "",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.10620855839171,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:05:06.822681+00:00"
+      }
+    },
+    "integration_validation": {
+      "status": "failed",
+      "score": 60.0,
+      "execution_time": 0.030182361602783203,
+      "error_message": "Score 60.0 below threshold 85.0",
+      "failure_analysis": null,
+      "resource_usage": {
+        "cpu_usage": 15.0,
+        "memory_usage": 45.0,
+        "disk_usage": 15.10620855839171,
+        "network_active": true,
+        "timestamp": "2025-08-28 00:05:06.849351+00:00"
+      }
+    }
+  },
+  "system_resources": {
+    "final": {
+      "cpu_usage": 15.0,
+      "memory_usage": 45.0,
+      "disk_usage": 15.10620855839171,
+      "network_active": true,
+      "timestamp": "2025-08-28 00:05:06.881610+00:00"
+    }
+  }
+}
