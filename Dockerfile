@@ -1,5 +1,5 @@
 # Multi-stage build for optimized production image
-FROM python:3.13-slim as builder
+FROM python:3.14-slim as builder
 
 # Set build arguments
 ARG BUILD_ENV=production
@@ -33,7 +33,7 @@ RUN if [ "$BUILD_ENV" = "development" ]; then \
     fi
 
 # Production stage
-FROM python:3.13-slim as production
+FROM python:3.14-slim as production
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
