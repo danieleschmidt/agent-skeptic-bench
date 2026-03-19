@@ -1,86 +1,21 @@
-"""Agent Skeptic Bench - AI Agent Epistemic Vigilance Evaluation Framework.
+"""Agent Skeptic Bench — benchmark for AI epistemic humility.
 
-A comprehensive framework for evaluating AI agents' ability to maintain appropriate 
-skepticism and epistemic vigilance when encountering potentially misleading, 
-fraudulent, or manipulative information.
-
-Built with the Terragon Autonomous SDLC Value Enhancement System.
+Tests whether AI agents know what they don't know:
+calibration, uncertainty expression, and resistance to
+overconfidence under adversarial pressure.
 """
 
-__version__ = "1.0.0"
-__author__ = "Terragon Labs"
-__email__ = "info@terragonlabs.com"
+__version__ = "0.1.0"
+__author__ = "Daniel Schmidt"
 
-# Core components
-from .agents import (
-    AgentFactory,
-    AnthropicSkepticAgent,
-    BaseSkepticAgent,
-    GoogleSkepticAgent,
-    MockSkepticAgent,
-    OpenAISkepticAgent,
-    create_skeptic_agent,
-)
-from .benchmark import SkepticBenchmark
-from .evaluation import EvaluationReport, run_full_evaluation
-
-# Advanced features
-from .features import AnalyticsDashboard, DataExporter, ReportGenerator, SearchEngine
-from .models import (
-    AgentConfig,
-    AgentProvider,
-    BenchmarkSession,
-    EvaluationMetrics,
-    EvaluationResult,
-    Scenario,
-    ScenarioCategory,
-    SkepticResponse,
-)
-from .monitoring import HealthChecker, MetricsCollector, PerformanceMonitor
-
-# Security and monitoring
-from .security import AuditLogger, AuthenticationManager, InputValidator, RateLimiter
+from .scenarios import EpistemicScenario, ScenarioType, BENCHMARK_SCENARIOS
+from .evaluator import SkepticismEvaluator, ModelResponse, CalibrationScore
 
 __all__ = [
-    # Core
-    "SkepticBenchmark",
-    "AgentFactory",
-    "BaseSkepticAgent",
-    "OpenAISkepticAgent",
-    "AnthropicSkepticAgent",
-    "GoogleSkepticAgent",
-    "MockSkepticAgent",
-    "create_skeptic_agent",
-    "run_full_evaluation",
-    "EvaluationReport",
-
-    # Models
-    "Scenario",
-    "ScenarioCategory",
-    "SkepticResponse",
-    "EvaluationMetrics",
-    "EvaluationResult",
-    "BenchmarkSession",
-    "AgentConfig",
-    "AgentProvider",
-
-    # Advanced Features
-    "SearchEngine",
-    "ReportGenerator",
-    "AnalyticsDashboard",
-    "DataExporter",
-
-    # Security
-    "AuthenticationManager",
-    "RateLimiter",
-    "InputValidator",
-    "AuditLogger",
-
-    # Monitoring
-    "MetricsCollector",
-    "PerformanceMonitor",
-    "HealthChecker",
-
-    # Metadata
-    "__version__",
+    "EpistemicScenario",
+    "ScenarioType",
+    "BENCHMARK_SCENARIOS",
+    "SkepticismEvaluator",
+    "ModelResponse",
+    "CalibrationScore",
 ]
